@@ -80,8 +80,9 @@ const GAME_CONFIG = {
 	// Configuration for the new Top and Bottom score scenes.
 	ScoreScenes: {
 		TOP_SCORE_SCREEN_HEIGHT: 60,
-		BOTTOM_SCORE_SCREEN_HEIGHT: 60,
-		TOTAL_MAX_SCORE: 100,
-		INDIVIDUAL_MAX_SCORE: 20
+		// MODIFIED: The bottom score bar area is no longer needed.
+		BOTTOM_SCORE_SCREEN_HEIGHT: 0,
+		TOTAL_MAX_SCORE: 100
+		// REMOVED: Individual max score is no longer used.
 	}
 };

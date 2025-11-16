@@ -119,10 +119,8 @@ class BoardSetup {
 		// --- MODIFIED: Start the timer when the board configuration is set/changed ---
 		this.startTimer();
 
-		// Dynamically calculate the total max score based on the number of sides.
-		// Each side/goal contributes to the total possible score.
-		const newTotalMaxScore = this.currentSides * GAME_CONFIG.ScoreScenes.INDIVIDUAL_MAX_SCORE;
-		GAME_CONFIG.ScoreScenes.TOTAL_MAX_SCORE = newTotalMaxScore;
+		// REMOVED: The logic to dynamically calculate the total max score has been moved.
+		// The total max score is now managed directly in GameScene.
 		GAME_CONFIG.Shared.NUMBER_OF_SIDES = this.currentSides;
 
 		const shuffledColors = Phaser.Utils.Array.Shuffle([...this.BALL_COLORS]);
