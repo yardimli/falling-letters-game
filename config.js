@@ -11,8 +11,8 @@ const GAME_CONFIG = {
 		SELECTOR_SCREEN_WIDTH: 100,
 		RIGHT_SCORE_SCREEN_WIDTH: 80, // New: Width for the new right-side accuracy bar.
 		NUMBER_OF_SIDES: 3,
-		
-		// Master list of all possible ball colors
+
+		// MODIFIED: Added a new color to support up to 8 goals.
 		BALL_COLORS: [
 			'#FF0000', // Red
 			'#FFA500', // Orange
@@ -20,10 +20,11 @@ const GAME_CONFIG = {
 			'#00FF00', // Green
 			'#0000FF', // Blue
 			'#4B0082', // Indigo
-			'#EE82EE'  // Violet
+			'#EE82EE', // Violet
+			'#800080' // Purple
 		]
 	},
-	
+
 	// Configuration for BallScene
 	BallScene: {
 		defaultMaxBalls: 3,
@@ -39,15 +40,16 @@ const GAME_CONFIG = {
 		organicMoveThreshold: 0.6,
 		organicMoveForce: 0.00005
 	},
-	
+
 	// Configuration for BoardSetupScene
 	BoardSetupScene: {
 		SELECTOR_PIXEL_WIDTH: 40,
 		SLOT_PIXEL_HEIGHT: 30,
-		NUM_ICONS: 4, // For polygons (3, 4, 5, 6 sides)
-		NUM_RECT_ICONS: 5 // For rectangles (2, 3, 4, 5, 6 goals)
+		// REMOVED: NUM_ICONS is no longer needed as polygons are removed.
+		// MODIFIED: Increased the number of rectangle icons to 7 to allow for 2-8 goals.
+		NUM_RECT_ICONS: 7 // For rectangles (2, 3, 4, 5, 6, 7, 8 goals)
 	},
-	
+
 	// Configuration for BoardViewScene
 	BoardViewScene: {
 		backgroundColor: '#111111',
@@ -74,14 +76,12 @@ const GAME_CONFIG = {
 			goalGap: 40
 		}
 	},
-	
+
 	// Configuration for the new Top and Bottom score scenes.
 	ScoreScenes: {
 		TOP_SCORE_SCREEN_HEIGHT: 60,
 		BOTTOM_SCORE_SCREEN_HEIGHT: 60,
 		TOTAL_MAX_SCORE: 100,
 		INDIVIDUAL_MAX_SCORE: 20
-	},
-	
-	
+	}
 };
