@@ -68,7 +68,7 @@ const GAME_CONFIG = {
 			}
 		},
 		goalConfig: {
-			width: 80,
+			width: 50,
 			depth: 40,
 			chamfer: 18,
 			dashLength: 2,
@@ -79,9 +79,7 @@ const GAME_CONFIG = {
 
 	// Configuration for the new Top and Bottom score scenes.
 	ScoreScenes: {
-		TOP_SCORE_SCREEN_HEIGHT: 60,
-		// MODIFIED: The bottom score bar area is no longer needed.
-		BOTTOM_SCORE_SCREEN_HEIGHT: 0,
+		TOP_SCORE_SCREEN_HEIGHT: 90,
 		TOTAL_MAX_SCORE: 100
 		// REMOVED: Individual max score is no longer used.
 	}

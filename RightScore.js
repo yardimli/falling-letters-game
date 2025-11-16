@@ -26,8 +26,7 @@ class RightScore {
 		
 		this.RIGHT_SCORE_SCREEN_WIDTH = sharedConfig.RIGHT_SCORE_SCREEN_WIDTH;
 		this.TOP_SCORE_SCREEN_HEIGHT = scoreScenesConfig.TOP_SCORE_SCREEN_HEIGHT;
-		this.BOTTOM_SCORE_SCREEN_HEIGHT = scoreScenesConfig.BOTTOM_SCORE_SCREEN_HEIGHT;
-		
+
 		this.PROGRESS_RECT_HEIGHT = 3; // Height (thickness) of each progress rectangle.
 		this.PROGRESS_RECT_PADDING = 2; // Padding between rectangles.
 		this.PROGRESS_ANIMATION_DELAY = 25; // Delay between each rectangle animation in ms.
@@ -75,7 +74,7 @@ class RightScore {
 		const areaX = this.scene.scale.width - this.RIGHT_SCORE_SCREEN_WIDTH;
 		const areaY = this.TOP_SCORE_SCREEN_HEIGHT;
 		const areaWidth = this.RIGHT_SCORE_SCREEN_WIDTH;
-		const areaHeight = this.scene.scale.height - this.TOP_SCORE_SCREEN_HEIGHT - this.BOTTOM_SCORE_SCREEN_HEIGHT;
+		const areaHeight = this.scene.scale.height - this.TOP_SCORE_SCREEN_HEIGHT;
 		
 		const barWidth = areaWidth * 0.6;
 		const barHeight = areaHeight * 0.9;

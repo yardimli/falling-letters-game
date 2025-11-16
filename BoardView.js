@@ -7,7 +7,6 @@ class BoardView {
 		const scoreScenesConfig = GAME_CONFIG.ScoreScenes;
 
 		this.TOP_SCORE_SCREEN_HEIGHT = scoreScenesConfig.TOP_SCORE_SCREEN_HEIGHT;
-		this.BOTTOM_SCORE_SCREEN_HEIGHT = scoreScenesConfig.BOTTOM_SCORE_SCREEN_HEIGHT;
 
 		this.boardPixelDimension = 0;
 
@@ -310,7 +309,7 @@ class BoardView {
 		const viewX = this.SELECTOR_SCREEN_WIDTH;
 		const viewY = this.TOP_SCORE_SCREEN_HEIGHT;
 		const viewWidth = gameSize.width - this.SELECTOR_SCREEN_WIDTH - this.RIGHT_SCORE_SCREEN_WIDTH;
-		const viewHeight = gameSize.height - this.TOP_SCORE_SCREEN_HEIGHT - this.BOTTOM_SCORE_SCREEN_HEIGHT;
+		const viewHeight = gameSize.height - this.TOP_SCORE_SCREEN_HEIGHT;
 		this.boardImage.setPosition(viewX + viewWidth / 2, viewY + viewHeight / 2);
 
 		this.drawBoardShape();
@@ -318,7 +317,7 @@ class BoardView {
 
 	calculateBoardPixelDimension () {
 		const viewportWidth = this.scene.scale.width - this.SELECTOR_SCREEN_WIDTH - this.RIGHT_SCORE_SCREEN_WIDTH;
-		const viewportHeight = this.scene.scale.height - this.TOP_SCORE_SCREEN_HEIGHT - this.BOTTOM_SCORE_SCREEN_HEIGHT;
+		const viewportHeight = this.scene.scale.height - this.TOP_SCORE_SCREEN_HEIGHT;
 
 		const maxDisplaySize = Math.min(viewportWidth, viewportHeight);
 
@@ -328,7 +327,8 @@ class BoardView {
 	// REMOVED: drawArena for polygons is no longer needed.
 
 	drawRectangleArena (ctx, topLeft, width, height, color, segmentStore) {
-		const { width: goalWidth, depth: goalDepth, chamfer, dashLength, gapLength } = this.goalConfig;
+		// MODIFIED: Removed 'chamfer' from destructuring as it's no longer used for straight goal walls.
+		const { width: goalWidth, depth: goalDepth, dashLength, gapLength } = this.goalConfig;
 
 		ctx.lineWidth = 1;
 		ctx.lineCap = 'round';
@@ -380,8 +380,10 @@ class BoardView {
 			const post1 = { x: currentX, y: topLeft.y };
 			const post2 = { x: currentX + goalWidth, y: topLeft.y };
 
-			const back1 = { x: post1.x + chamfer, y: post1.y - goalDepth };
-			const back2 = { x: post2.x - chamfer, y: post2.y - goalDepth };
+			// MODIFIED: The 'chamfer' has been removed from the x-coordinate calculation
+			// to make the goal walls straight vertical lines instead of angled.
+			const back1 = { x: post1.x, y: post1.y - goalDepth };
+			const back2 = { x: post2.x, y: post2.y - goalDepth };
 
 			ctx.setLineDash([dashLength, gapLength]);
 			ctx.beginPath();

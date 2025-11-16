@@ -123,7 +123,7 @@ class GameOver {
 		
 		// Pick a random launch position within the main play area.
 		const x = Phaser.Math.Between(GAME_CONFIG.Shared.SELECTOR_SCREEN_WIDTH, gameSize.width - GAME_CONFIG.Shared.RIGHT_SCORE_SCREEN_WIDTH);
-		const y = Phaser.Math.Between(GAME_CONFIG.ScoreScenes.TOP_SCORE_SCREEN_HEIGHT, gameSize.height - GAME_CONFIG.ScoreScenes.BOTTOM_SCORE_SCREEN_HEIGHT);
+		const y = Phaser.Math.Between(GAME_CONFIG.ScoreScenes.TOP_SCORE_SCREEN_HEIGHT, gameSize.height);
 		
 		// --- MODIFIED: Updated to Phaser 3.60+ particle emitter API ---
 		// The old `this.scene.add.particles(texture).createEmitter(config)` is deprecated.
