@@ -6,7 +6,8 @@ class BallManager {
 		this.boardView = boardView; // Store a reference to the board view manager.
 		// REMOVED: this.bottomScore is no longer needed.
 
-		this.ballConfig = {...GAME_CONFIG.BallScene};
+		this.ballConfig = { ...GAME_CONFIG.BallScene
+		};
 		// Adjusted physics parameters for stable dragging
 		this.ballConfig.dragStiffness = 0.01; // How strongly the ball follows the cursor (0-1)
 		this.ballConfig.dragDamping = 0.9; // Velocity damping while dragging (0-1)
@@ -56,7 +57,9 @@ class BallManager {
 			// Ensure we are only dragging balls that have a physics body.
 			if (!gameObject.body || gameObject.body.label !== 'ball') return;
 
-			this.scene.sound.play('click', { volume: 0.5 });
+			this.scene.sound.play('click', {
+				volume: 0.5
+			});
 
 			// The ball remains a dynamic physics object.
 			gameObject.originalFrictionAir = gameObject.body.frictionAir;
@@ -117,7 +120,10 @@ class BallManager {
 
 			// 1. Check for a drop in a goal sensor area first.
 			if (goalSensors && goalSensors.length > 0) {
-				const point = { x: dropX, y: dropY };
+				const point = {
+					x: dropX,
+					y: dropY
+				};
 				const bodiesUnderPoint = this.scene.matter.query.point(goalSensors, point);
 
 				if (bodiesUnderPoint.length > 0) {
@@ -141,15 +147,21 @@ class BallManager {
 			switch (dropType) {
 				case 'correct':
 					this.scene.game.events.emit('correctDrop'); // Fire event for accuracy tracking.
-					this.scene.sound.play('drop_valid', { volume: 0.6 });
+					this.scene.sound.play('drop_valid', {
+						volume: 0.6
+					});
 
 					// MODIFIED: The ball no longer animates to a score bar.
 					// It now emits the score event and then fades out. A new ball is spawned after a delay.
-					this.scene.game.events.emit('scorePoint', { color: gameObject.color });
+					this.scene.game.events.emit('scorePoint', {
+						color: gameObject.color
+					});
 
 					// Make the ball non-interactive and non-colliding during fade out.
 					gameObject.setStatic(true);
-					gameObject.setActive(false);
+					// REMOVED: This line was causing the bug. The fadeAndDestroyBall function handles setting the ball to inactive.
+					// By setting it here, the fade function's initial check `if (!ball.active)` would fail, and the function would exit early.
+					// gameObject.setActive(false);
 					gameObject.setCollisionCategory(0);
 
 					// Use the shared fade function and tell it to respawn a new ball.
@@ -157,7 +169,9 @@ class BallManager {
 					break;
 
 				case 'valid_play_area':
-					this.scene.sound.play('click_drop', { volume: 0.6 });
+					this.scene.sound.play('click_drop', {
+						volume: 0.6
+					});
 					// Animate the scale back to its normal size.
 					gameObject.setStatic(true);
 					this.scene.tweens.add({
@@ -175,7 +189,9 @@ class BallManager {
 				case 'invalid':
 					// Emit event for both incorrect goal drop and invalid area drop.
 					this.scene.game.events.emit('incorrectDrop'); // Fire event for accuracy tracking.
-					this.scene.sound.play('drop_invalid', { volume: 0.6 });
+					this.scene.sound.play('drop_invalid', {
+						volume: 0.6
+					});
 
 					// Return the ball to the center of the play area.
 					if (gameObject.active) {
@@ -251,7 +267,10 @@ class BallManager {
 				let isInGoal = false;
 				// Check if the ball has wandered into a goal area.
 				if (goalSensors && goalSensors.length > 0) {
-					const bodiesUnderPoint = this.scene.matter.query.point(goalSensors, { x: ball.x, y: ball.y });
+					const bodiesUnderPoint = this.scene.matter.query.point(goalSensors, {
+						x: ball.x,
+						y: ball.y
+					});
 					if (bodiesUnderPoint.length > 0) {
 						isInGoal = true;
 					}
@@ -296,7 +315,10 @@ class BallManager {
 		}
 
 		const wallThickness = 10;
-		const textureCenter = { x: boardPixelDimension / 2, y: boardPixelDimension / 2 };
+		const textureCenter = {
+			x: boardPixelDimension / 2,
+			y: boardPixelDimension / 2
+		};
 
 		borderSegments.forEach(segment => {
 			const p1_world = {
@@ -365,7 +387,10 @@ class BallManager {
 		const textureKey = `ball_${colorIndex}`;
 
 		const ball = this.scene.matter.add.image(spawnX, spawnY, textureKey, null, {
-			shape: { type: 'circle', radius: this.ballConfig.pixelSize },
+			shape: {
+				type: 'circle',
+				radius: this.ballConfig.pixelSize
+			},
 			restitution: this.ballConfig.restitution,
 			frictionAir: this.ballConfig.frictionAir,
 			label: 'ball'
@@ -387,7 +412,9 @@ class BallManager {
 			duration: this.ballConfig.dropDuration,
 			ease: 'Bounce.easeOut',
 			onStart: () => {
-				this.scene.sound.play('drop', { volume: 0.7 });
+				this.scene.sound.play('drop', {
+					volume: 0.7
+				});
 			},
 			onComplete: () => {
 				if (!ball.active) return;
