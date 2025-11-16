@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>Phaser 3 - Advanced Glitch Board</title>
+	<!-- Load the Phaser library -->
+	<script src="phaser/phaser.min.js"></script>
+	
+	<!-- Custom Styles -->
+	<style>
+		html, body {
+			margin: 0;
+			padding: 0;
+			height: 100%;
+			width: 100%;
+			overflow: hidden; /* Hide scroll bars */
+			background-color: #000;
+		}
+		canvas {
+			display: block;
+			/* Hide the default system cursor so we can draw our own. */
+			cursor: none;
+		}
+	</style>
+</head>
+<body>
+
+<!-- Load shared code and constants -->
+<script src="globals.js"></script>
+
+<!-- Load the centralized game configuration before the scenes that use it -->
+<script src="config.js"></script>
+
+<!-- Load manager classes first -->
+<script src="BoardSetup.js"></script>
+<script src="BoardView.js"></script>
+<script src="BallManager.js"></script>
+<script src="TopScore.js"></script>
+<script src="BottomScore.js"></script>
+<script src="RightScore.js"></script>
+<!-- MODIFIED: Added the new GameOver manager script -->
+<script src="GameOver.js"></script>
+
+<!-- Load the new main GameScene -->
+<script src="GameScene.js"></script>
+
+<!-- Load the main game configuration and start the game -->
+<script src="main.js"></script>
+
+</body>
+</html>
