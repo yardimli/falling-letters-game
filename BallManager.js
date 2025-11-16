@@ -1,28 +1,37 @@
 // --- The Ball Manager ---
 class BallManager {
-	// MODIFIED: Removed bottomScore from the constructor as it's no longer needed.
-	constructor(scene, boardView) {
-		this.scene = scene; // Store a reference to the main scene.
-		this.boardView = boardView; // Store a reference to the board view manager.
-		// REMOVED: this.bottomScore is no longer needed.
+	/**
+	 * MODIFIED: The constructor now accepts word data loaded from a JSON file.
+	 * @param {Phaser.Scene} scene The main game scene.
+	 * @param {BoardView} boardView A reference to the board view manager.
+	 * @param {object} wordData The dictionary of words loaded from JSON.
+	 */
+	constructor(scene, boardView, wordData) {
+		this.scene = scene;
+		this.boardView = boardView;
+		this.wordData = wordData; // NEW: Store the loaded word data.
 
 		this.ballConfig = { ...GAME_CONFIG.BallScene
 		};
 		// Adjusted physics parameters for stable dragging
-		this.ballConfig.dragStiffness = 0.01; // How strongly the ball follows the cursor (0-1)
-		this.ballConfig.dragDamping = 0.9; // Velocity damping while dragging (0-1)
-		this.ballConfig.maxDragVelocity = 10; // Maximum velocity while dragging
+		this.ballConfig.dragStiffness = 0.01;
+		this.ballConfig.dragDamping = 0.9;
+		this.ballConfig.maxDragVelocity = 10;
 
-		// These properties are set dynamically when the board configuration changes.
-		this.ballConfig.colors = [];
 		this.ballConfig.maxBalls = this.ballConfig.defaultMaxBalls;
 
 		this.balls = null;
 		this.walls = null;
 		this.goals = [];
 
-		// --- NEW: Flag to track if the game is over. ---
 		this.isGameOver = false;
+
+		// --- NEW: Word-based game state ---
+		this.currentWord = '';
+		this.wordLetters = []; // e.g., ['A', 'P', 'P', 'L', 'E']
+		this.placedState = []; // Array of booleans to track placed letters, e.g., [false, true, false]
+		this.activeBallMap = new Map(); // Maps a word index to an active ball instance to handle duplicate letters.
+		this.alphabetTexturesCreated = false; // Flag to ensure textures are made only once.
 	}
 
 	init() {
@@ -31,49 +40,39 @@ class BallManager {
 		this.balls = this.scene.add.group();
 		this.walls = this.scene.add.group();
 
+		// NEW: Create textures for all letters of the alphabet once at the start.
+		this.createAlphabetTextures();
+
 		this.scene.game.events.on('boardConfigurationChanged', (config) => {
-			this.ballConfig.colors = config.colors;
+			// REMOVED: Color configuration is no longer needed.
 			this.ballConfig.maxBalls = config.sides;
 			this.goals = config.goals;
-			this.createBallTextures();
 			this.createWallsFromPolygon();
-			this.resetBalls();
+			// MODIFIED: Instead of just resetting balls, this now selects the first word for the chosen length.
+			this.selectNextWord();
 		}, this);
 
-		// --- NEW: Listen for the game over event to stop ball activity. ---
 		this.scene.game.events.on('gameOver', () => {
 			this.isGameOver = true;
-			// Fade out all existing balls and prevent them from respawning.
 			this.balls.getChildren().forEach(ball => {
 				if (ball.lifespanTimer) {
 					ball.lifespanTimer.remove();
 				}
-				this.fadeAndDestroyBall(ball, false); // MODIFIED: Explicitly do not respawn during game over.
+				this.fadeAndDestroyBall(ball, false);
 			});
 		}, this);
 
-		// --- Improved Physics-based Dragging Logic ---
+		// --- Physics-based Dragging Logic ---
 		this.scene.input.on('dragstart', (pointer, gameObject) => {
-			// Ensure we are only dragging balls that have a physics body.
 			if (!gameObject.body || gameObject.body.label !== 'ball') return;
-
-			this.scene.sound.play('click', {
-				volume: 0.5
-			});
-
-			// The ball remains a dynamic physics object.
+			this.scene.sound.play('click', { volume: 0.5 });
 			gameObject.originalFrictionAir = gameObject.body.frictionAir;
-			gameObject.setFrictionAir(0.1); // Increased air friction for better control
+			gameObject.setFrictionAir(0.1);
 			gameObject.isDragging = true;
-			// MODIFIED: Store a reference to the pointer for use in the update loop.
 			gameObject.draggingPointer = pointer;
-
-			// Store the drag offset to maintain relative position
 			gameObject.dragOffsetX = gameObject.x - pointer.x;
 			gameObject.dragOffsetY = gameObject.y - pointer.y;
-
 			this.scene.children.bringToTop(gameObject);
-
 			gameObject.setStatic(true);
 			this.scene.tweens.add({
 				targets: gameObject,
@@ -86,18 +85,11 @@ class BallManager {
 			});
 		});
 
-		// REMOVED: The 'drag' event handler is no longer needed.
-		// Its logic has been moved to the 'update' method to ensure the force
-		// is applied continuously, even when the mouse is stationary.
-
-		// --- MODIFIED: Refactored dragend logic for clarity and new events ---
+		// --- MODIFIED: Refactored dragend logic for letters and words ---
 		this.scene.input.on('dragend', (pointer, gameObject) => {
-			// Ensure we are only ending the drag for a ball.
 			if (!gameObject.body || gameObject.body.label !== 'ball' || !gameObject.active) return;
 			gameObject.isDragging = false;
 
-			// Clean up drag properties and restore physics.
-			// MODIFIED: Clean up the stored pointer reference.
 			delete gameObject.draggingPointer;
 			delete gameObject.dragOffsetX;
 			delete gameObject.dragOffsetY;
@@ -114,21 +106,18 @@ class BallManager {
 			const dropX = gameObject.x;
 			const dropY = gameObject.y;
 
-			// Determine the type of drop based on location and color.
-			let dropType = 'invalid'; // Types: 'correct', 'incorrect_goal', 'valid_play_area', 'invalid'
+			let dropType = 'invalid';
 			let hitSensor = null;
 
-			// 1. Check for a drop in a goal sensor area first.
 			if (goalSensors && goalSensors.length > 0) {
-				const point = {
-					x: dropX,
-					y: dropY
-				};
+				const point = { x: dropX, y: dropY };
 				const bodiesUnderPoint = this.scene.matter.query.point(goalSensors, point);
 
 				if (bodiesUnderPoint.length > 0) {
 					hitSensor = bodiesUnderPoint[0];
-					if (gameObject.color === hitSensor.color) {
+					// MODIFIED: A drop is correct if the ball's index in the word matches the goal's index,
+					// and that goal slot is not already filled.
+					if (gameObject.wordIndex === hitSensor.sideIndex && !this.placedState[hitSensor.sideIndex]) {
 						dropType = 'correct';
 					} else {
 						dropType = 'incorrect_goal';
@@ -136,43 +125,44 @@ class BallManager {
 				}
 			}
 
-			// 2. If not in a goal, check if it's in the valid play area.
 			if (dropType === 'invalid' && playArea) {
 				if (Phaser.Geom.Polygon.Contains(playArea, pointer.x, pointer.y)) {
 					dropType = 'valid_play_area';
 				}
 			}
 
-			// 3. Process the drop based on its determined type.
 			switch (dropType) {
 				case 'correct':
-					this.scene.game.events.emit('correctDrop'); // Fire event for accuracy tracking.
-					this.scene.sound.play('drop_valid', {
-						volume: 0.6
-					});
+					this.scene.game.events.emit('correctDrop');
+					this.scene.sound.play('drop_valid', { volume: 0.6 });
 
-					// MODIFIED: The ball no longer animates to a score bar.
-					// It now emits the score event and then fades out. A new ball is spawned after a delay.
-					this.scene.game.events.emit('scorePoint', {
-						color: gameObject.color
-					});
+					// --- MODIFIED: Logic for placing a correct letter ---
+					this.placedState[gameObject.wordIndex] = true; // Mark letter as placed.
+					this.activeBallMap.delete(gameObject.wordIndex); // Remove from active balls map.
 
-					// Make the ball non-interactive and non-colliding during fade out.
+					// The ball is not destroyed. It's locked in place.
 					gameObject.setStatic(true);
-					// REMOVED: This line was causing the bug. The fadeAndDestroyBall function handles setting the ball to inactive.
-					// By setting it here, the fade function's initial check `if (!ball.active)` would fail, and the function would exit early.
-					// gameObject.setActive(false);
 					gameObject.setCollisionCategory(0);
+					this.scene.input.disable(gameObject); // Make it undraggable.
 
-					// Use the shared fade function and tell it to respawn a new ball.
-					this.fadeAndDestroyBall(gameObject, true);
+					// Animate the ball to the center of the goal for a clean look.
+					this.scene.tweens.add({
+						targets: gameObject,
+						x: hitSensor.position.x,
+						y: hitSensor.position.y,
+						scale: this.ballConfig.finalSize,
+						duration: 200,
+						ease: 'Power2'
+					});
+
+					this.checkForWordCompletion();
+
+					// After a correct drop, try to spawn the next available letter.
+					this.scene.time.delayedCall(500, this.spawnBall, [], this);
 					break;
 
 				case 'valid_play_area':
-					this.scene.sound.play('click_drop', {
-						volume: 0.6
-					});
-					// Animate the scale back to its normal size.
+					this.scene.sound.play('click_drop', { volume: 0.6 });
 					gameObject.setStatic(true);
 					this.scene.tweens.add({
 						targets: gameObject,
@@ -187,33 +177,27 @@ class BallManager {
 
 				case 'incorrect_goal':
 				case 'invalid':
-					// Emit event for both incorrect goal drop and invalid area drop.
-					this.scene.game.events.emit('incorrectDrop'); // Fire event for accuracy tracking.
-					this.scene.sound.play('drop_invalid', {
-						volume: 0.6
-					});
-
-					// Return the ball to the center of the play area.
+					this.scene.game.events.emit('incorrectDrop');
+					this.scene.sound.play('drop_invalid', { volume: 0.6 });
 					if (gameObject.active) {
 						const center = this.boardView.playArea.center;
 						if (center) {
-							gameObject.setStatic(true); // Prevent physics during the tween
+							gameObject.setStatic(true);
 							this.scene.tweens.add({
 								targets: gameObject,
 								x: center.x,
 								y: center.y,
-								scale: this.ballConfig.finalSize, // Also restore scale
+								scale: this.ballConfig.finalSize,
 								duration: 500,
 								ease: 'Power2',
 								onComplete: () => {
 									if (gameObject.active) {
-										gameObject.setStatic(false); // Re-enable physics
+										gameObject.setStatic(false);
 									}
 								}
 							});
 						} else {
-							console.warn('No center point available for returning the ball.');
-							this.fadeAndDestroyBall(gameObject, false);
+							this.fadeAndDestroyBall(gameObject, true);
 						}
 					}
 					break;
@@ -222,72 +206,47 @@ class BallManager {
 	}
 
 	update(time, delta) {
-		const goalSensors = this.boardView.goalSensors;
-		const playAreaCenter = this.boardView.playArea.center;
-
 		this.balls.getChildren().forEach(ball => {
-			// Don't apply any forces to a static or inactive ball.
 			if (!ball.body || !ball.active || ball.isStatic()) {
 				return;
 			}
-
-			// MODIFIED: Handle dragging and non-dragging physics separately.
 			if (ball.isDragging && ball.draggingPointer) {
-				// --- This logic was moved from the 'drag' event handler ---
-				// It runs every frame to ensure the ball smoothly follows the cursor,
-				// preventing it from getting "stuck" when the pointer is stationary.
 				const pointer = ball.draggingPointer;
 				const targetX = pointer.x + ball.dragOffsetX;
 				const targetY = pointer.y + ball.dragOffsetY;
-
 				const dx = targetX - ball.x;
 				const dy = targetY - ball.y;
-
 				const forceX = dx * this.ballConfig.dragStiffness;
 				const forceY = dy * this.ballConfig.dragStiffness;
-
 				ball.setVelocity(forceX * 60, forceY * 60);
-
 				const currentVelocity = ball.body.velocity;
 				const speed = Math.sqrt(currentVelocity.x * currentVelocity.x + currentVelocity.y * currentVelocity.y);
-
 				if (speed > this.ballConfig.maxDragVelocity) {
 					const scale = this.ballConfig.maxDragVelocity / speed;
 					ball.setVelocity(currentVelocity.x * scale, currentVelocity.y * scale);
 				}
-
 				ball.setVelocity(
 					ball.body.velocity.x * this.ballConfig.dragDamping,
 					ball.body.velocity.y * this.ballConfig.dragDamping
 				);
-
 				ball.setAngularVelocity(0);
 			} else {
-				// --- This is the original update logic for non-dragged balls ---
+				const goalSensors = this.boardView.goalSensors;
+				const playAreaCenter = this.boardView.playArea.center;
 				let isInGoal = false;
-				// Check if the ball has wandered into a goal area.
 				if (goalSensors && goalSensors.length > 0) {
-					const bodiesUnderPoint = this.scene.matter.query.point(goalSensors, {
-						x: ball.x,
-						y: ball.y
-					});
+					const bodiesUnderPoint = this.scene.matter.query.point(goalSensors, { x: ball.x, y: ball.y });
 					if (bodiesUnderPoint.length > 0) {
 						isInGoal = true;
 					}
 				}
-
 				if (isInGoal && playAreaCenter) {
-					// The ball is inside a goal sensor. Push it back towards the center of the arena.
 					const direction = new Phaser.Math.Vector2(playAreaCenter.x - ball.x, playAreaCenter.y - ball.y);
 					direction.normalize();
-
-					// A small, constant force to gently nudge the ball.
 					const repelForce = 0.001;
 					direction.scale(repelForce);
-
 					ball.applyForce(direction);
 				} else {
-					// If not in a goal, apply the standard organic movement.
 					if (Math.random() > this.ballConfig.organicMoveThreshold) {
 						const angle = Phaser.Math.FloatBetween(0, Math.PI * 2);
 						const force = new Phaser.Math.Vector2(
@@ -303,108 +262,121 @@ class BallManager {
 
 	createWallsFromPolygon() {
 		this.walls.clear(true, true);
-
 		const borderSegments = this.boardView.borderSegments;
 		const boardImage = this.boardView.boardImage;
 		const boardPixelDimension = this.boardView.boardPixelDimension;
 		const pixelScale = this.boardView.PIXEL_SCALE;
-
 		if (!borderSegments || borderSegments.length === 0 || !boardImage) {
-			console.warn('Cannot create walls, border segment data is not ready.');
 			return;
 		}
-
 		const wallThickness = 10;
-		const textureCenter = {
-			x: boardPixelDimension / 2,
-			y: boardPixelDimension / 2
-		};
-
+		const textureCenter = { x: boardPixelDimension / 2, y: boardPixelDimension / 2 };
 		borderSegments.forEach(segment => {
-			const p1_world = {
-				x: boardImage.x + (segment.p1.x - textureCenter.x) * pixelScale,
-				y: boardImage.y + (segment.p1.y - textureCenter.y) * pixelScale
-			};
-			const p2_world = {
-				x: boardImage.x + (segment.p2.x - textureCenter.x) * pixelScale,
-				y: boardImage.y + (segment.p2.y - textureCenter.y) * pixelScale
-			};
-
+			const p1_world = { x: boardImage.x + (segment.p1.x - textureCenter.x) * pixelScale, y: boardImage.y + (segment.p1.y - textureCenter.y) * pixelScale };
+			const p2_world = { x: boardImage.x + (segment.p2.x - textureCenter.x) * pixelScale, y: boardImage.y + (segment.p2.y - textureCenter.y) * pixelScale };
 			const length = Phaser.Math.Distance.BetweenPoints(p1_world, p2_world);
 			const angle = Phaser.Math.Angle.BetweenPoints(p1_world, p2_world);
 			const centerX = (p1_world.x + p2_world.x) / 2;
 			const centerY = (p1_world.y + p2_world.y) / 2;
-
 			const wallSegmentGO = this.scene.add.rectangle(centerX, centerY, length, wallThickness);
-
-			this.scene.matter.add.gameObject(wallSegmentGO, {
-				isStatic: true,
-				restitution: 0.5,
-				friction: 0.1
-			});
-
+			this.scene.matter.add.gameObject(wallSegmentGO, { isStatic: true, restitution: 0.5, friction: 0.1 });
 			wallSegmentGO.setRotation(angle);
 			wallSegmentGO.setVisible(false);
 			this.walls.add(wallSegmentGO);
 		});
 	}
 
-	spawnBall() {
-		// --- MODIFIED: Add checks to prevent spawning if game is over. ---
-		if (this.isGameOver) {
-			return;
+	/**
+	 * NEW: Checks if the current word has been fully spelled.
+	 */
+	checkForWordCompletion() {
+		if (this.placedState.every(isPlaced => isPlaced)) {
+			console.log(`Word complete: ${this.currentWord}`);
+			// NEW: Emit an event that the TopScore manager can listen for.
+			this.scene.game.events.emit('wordCompleted');
+
+			this.scene.time.delayedCall(2000, () => {
+				this.balls.getChildren().forEach(ball => {
+					this.fadeAndDestroyBall(ball, false);
+				});
+				this.selectNextWord();
+			}, [], this);
 		}
-		if (this.balls.countActive(true) >= this.ballConfig.maxBalls) {
+	}
+
+	/**
+	 * NEW: Selects a new word and sets up the game state for the new round.
+	 */
+	selectNextWord() {
+		this.activeBallMap.clear();
+
+		const wordLength = this.ballConfig.maxBalls.toString();
+		const wordList = this.wordData[wordLength];
+
+		if (!wordList || wordList.length === 0) {
+			console.error(`No words of length ${wordLength} found in words.json`);
 			return;
 		}
 
-		// Check if the play area and its center point are available from the BoardView.
+		this.currentWord = Phaser.Utils.Array.GetRandom(wordList);
+		this.wordLetters = this.currentWord.split('');
+		this.placedState = new Array(this.wordLetters.length).fill(false);
+		console.log(`New word: ${this.currentWord}`);
+
+		this.boardView.setGoalLetters(this.wordLetters);
+
+		this.resetBalls();
+	}
+
+	spawnBall() {
+		if (this.isGameOver) return;
+		if (this.activeBallMap.size >= this.ballConfig.maxBalls) {
+			return;
+		}
 		if (!this.boardView.playArea || !this.boardView.playArea.center) {
-			// If not ready, wait a moment and try to spawn again.
 			this.scene.time.delayedCall(50, this.spawnBall, [], this);
 			return;
 		}
 
-		// REMOVED: The logic to filter colors based on individual scores has been removed.
-		// All configured colors are now available to spawn.
-		const availableColors = this.ballConfig.colors;
+		let availableIndex = -1;
+		const shuffledIndices = Phaser.Utils.Array.Shuffle([...this.wordLetters.keys()]);
 
-		// If there are no colors configured, do not spawn any more balls.
-		if (availableColors.length === 0) {
-			console.log('No colors configured. No more balls will spawn.');
+		for (const i of shuffledIndices) {
+			if (!this.placedState[i] && !this.activeBallMap.has(i)) {
+				availableIndex = i;
+				break;
+			}
+		}
+
+		if (availableIndex === -1) {
 			return;
 		}
 
-		// Always use the center of the arena as the target drop point.
 		const targetPoint = this.boardView.playArea.center;
-
 		const spawnX = targetPoint.x;
-		const spawnY = -50; // Start the ball above the screen.
+		const spawnY = -50;
 
-		// --- MODIFIED: Select a random color from the available list. ---
-		const ballColor = Phaser.Utils.Array.GetRandom(availableColors);
-		const colorIndex = this.ballConfig.colors.indexOf(ballColor);
-		const textureKey = `ball_${colorIndex}`;
+		const ballLetter = this.wordLetters[availableIndex];
+		const textureKey = `ball_${ballLetter}`;
 
 		const ball = this.scene.matter.add.image(spawnX, spawnY, textureKey, null, {
-			shape: {
-				type: 'circle',
-				radius: this.ballConfig.pixelSize
-			},
+			shape: { type: 'circle', radius: this.ballConfig.pixelSize },
 			restitution: this.ballConfig.restitution,
 			frictionAir: this.ballConfig.frictionAir,
 			label: 'ball'
 		});
 		this.balls.add(ball);
-		ball.color = ballColor;
-		ball.isDragging = false; // Custom property to track dragging state.
+		ball.letter = ballLetter;
+		ball.wordIndex = availableIndex;
+		ball.isDragging = false;
+
+		this.activeBallMap.set(availableIndex, ball);
 
 		ball.setScale(this.ballConfig.initialSize);
 		ball.setOrigin(0.5, 0.5);
 		ball.setStatic(true);
 		this.scene.input.setDraggable(ball.setInteractive());
 
-		// Animate the ball dropping into the center.
 		this.scene.tweens.add({
 			targets: ball,
 			y: targetPoint.y,
@@ -412,33 +384,26 @@ class BallManager {
 			duration: this.ballConfig.dropDuration,
 			ease: 'Bounce.easeOut',
 			onStart: () => {
-				this.scene.sound.play('drop', {
-					volume: 0.7
-				});
+				this.scene.sound.play('drop', { volume: 0.7 });
 			},
 			onComplete: () => {
 				if (!ball.active) return;
-
 				ball.setStatic(false);
-
-				// Give the ball a little nudge in a random direction after it lands.
 				const initialSpeed = Phaser.Math.FloatBetween(2, 5);
 				const angle = Phaser.Math.FloatBetween(0, Math.PI * 2);
-
 				const velocityX = Math.cos(angle) * initialSpeed;
 				const velocityY = Math.sin(angle) * initialSpeed;
-
 				ball.setVelocity(velocityX, velocityY);
-
-				// MODIFIED: The lifespan timer now calls fadeAndDestroyBall with the respawn flag.
-				ball.lifespanTimer = this.scene.time.delayedCall(this.ballConfig.lifespan, this.fadeAndDestroyBall, [ball, true], this);
 			}
 		});
 	}
 
-	createBallTextures() {
-		this.ballConfig.colors.forEach((color, index) => {
-			const textureKey = `ball_${index}`;
+	createAlphabetTextures() {
+		if (this.alphabetTexturesCreated) return;
+
+		const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+		alphabet.forEach(letter => {
+			const textureKey = `ball_${letter}`;
 			const size = this.ballConfig.pixelSize * 2;
 			const radius = size / 2;
 
@@ -452,34 +417,31 @@ class BallManager {
 
 			const highlightX = radius * 0.7;
 			const highlightY = radius * 0.7;
-			const gradient = ctx.createRadialGradient(
-				highlightX,
-				highlightY,
-				radius * 0.05,
-				radius,
-				radius,
-				radius
-			);
-
-			const baseColor = Phaser.Display.Color.HexStringToColor(color);
-			const lightColor = Phaser.Display.Color.ValueToColor(color).lighten(75);
-			const darkColor = Phaser.Display.Color.ValueToColor(color).darken(50);
-
+			const gradient = ctx.createRadialGradient(highlightX, highlightY, radius * 0.05, radius, radius, radius);
+			const baseColor = Phaser.Display.Color.HexStringToColor('#CCCCCC');
+			const lightColor = Phaser.Display.Color.ValueToColor('#FFFFFF');
+			const darkColor = Phaser.Display.Color.ValueToColor('#999999');
 			gradient.addColorStop(0, `rgba(${lightColor.r}, ${lightColor.g}, ${lightColor.b}, 1)`);
 			gradient.addColorStop(0.8, `rgba(${baseColor.r}, ${baseColor.g}, ${baseColor.b}, 1)`);
 			gradient.addColorStop(1, `rgba(${darkColor.r}, ${darkColor.g}, ${darkColor.b}, 1)`);
-
 			ctx.fillStyle = gradient;
 			ctx.beginPath();
 			ctx.arc(radius, radius, radius, 0, Math.PI * 2);
 			ctx.fill();
 
+			ctx.font = `${radius * 1.2}px monospace`;
+			ctx.fillStyle = '#000000';
+			ctx.textAlign = 'center';
+			ctx.textBaseline = 'middle';
+			ctx.fillText(letter, radius, radius);
+
 			canvas.refresh();
 		});
+
+		this.alphabetTexturesCreated = true;
 	}
 
 	resetBalls() {
-		// --- NEW: Reset the game over state when the balls are reset. ---
 		this.isGameOver = false;
 
 		this.balls.getChildren().forEach(ball => {
@@ -487,27 +449,20 @@ class BallManager {
 			this.scene.tweens.killTweensOf(ball);
 		});
 		this.balls.clear(true, true);
+		this.activeBallMap.clear();
 
 		let ball_delay = 0;
 		for (let i = 0; i < this.ballConfig.maxBalls; i++) {
-			const delay = Phaser.Math.Between(1000, 2000);
+			const delay = Phaser.Math.Between(500, 1500);
 			ball_delay += delay;
-			this.scene.time.delayedCall(ball_delay, () => {
-				this.spawnBall();
-			});
+			this.scene.time.delayedCall(ball_delay, this.spawnBall, [], this);
 		}
 	}
 
-	/**
-	 * Fades a ball out and then destroys it.
-	 * @param {Phaser.GameObjects.Image} ball The ball to destroy.
-	 * @param {boolean} shouldRespawn Whether a new ball should be spawned after this one is destroyed.
-	 */
-	fadeAndDestroyBall(ball, shouldRespawn = false) { // MODIFIED: Added shouldRespawn parameter.
+	fadeAndDestroyBall(ball, shouldRespawn = false) {
 		if (!ball || !ball.active) return;
 		ball.setActive(false);
 
-		// MODIFIED: The ball is made non-collidable immediately upon starting to fade.
 		if (ball.body) {
 			ball.setCollisionCategory(0);
 		}
@@ -518,9 +473,11 @@ class BallManager {
 			duration: this.ballConfig.fadeDuration,
 			ease: 'Power2',
 			onComplete: () => {
+				if (ball.wordIndex !== undefined && this.activeBallMap.has(ball.wordIndex)) {
+					this.activeBallMap.delete(ball.wordIndex);
+				}
 				this.balls.remove(ball, true, true);
-				// MODIFIED: Only respawn a ball if the game is not over and shouldRespawn is true.
-				if (shouldRespawn && !this.isGameOver) {
+				if (shouldRespawn && !this.isGameOver && this.currentWord) {
 					this.scene.time.delayedCall(this.ballConfig.respawnDelay, this.spawnBall, [], this);
 				}
 			}
