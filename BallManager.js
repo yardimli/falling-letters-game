@@ -363,7 +363,8 @@ class BallManager {
 			shape: { type: 'circle', radius: this.ballConfig.pixelSize },
 			restitution: this.ballConfig.restitution,
 			frictionAir: this.ballConfig.frictionAir,
-			label: 'ball'
+			label: 'ball',
+			inertia: Infinity // MODIFIED: Prevents the ball from rotating, keeping the letter upright.
 		});
 		this.balls.add(ball);
 		ball.letter = ballLetter;

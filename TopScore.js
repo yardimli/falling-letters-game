@@ -6,17 +6,21 @@ class TopScore {
 	 */
 	constructor(scene, wordData) {
 		this.scene = scene;
-		this.wordData = wordData; // NEW: Store the loaded word data.
+		this.wordData = wordData;
 
-		this.currentScore = 0; // NEW: Tracks the number of completed words.
+		// MODIFIED: Tracks the number of correctly placed letters.
+		this.currentScore = 0;
 
 		// --- UI element references ---
 		this.totalProgressBar = null;
 		this.totalProgressContainer = null;
 		this.totalProgressRectangles = [];
-		this.totalScoreText = null; // MODIFIED: Renamed for clarity.
+		this.totalScoreText = null;
 		this.userNameText = null;
 		this.lastRectanglesShown = 0;
+		// NEW: Added tween for percentage animation.
+		this.percentageTween = null;
+		this.currentPercentage = 0;
 
 		this.gameOverTriggered = false;
 
@@ -24,7 +28,8 @@ class TopScore {
 		const scoreScenesConfig = GAME_CONFIG.ScoreScenes;
 
 		this.TOP_SCORE_SCREEN_HEIGHT = scoreScenesConfig.TOP_SCORE_SCREEN_HEIGHT;
-		this.TOTAL_MAX_SCORE = 0; // MODIFIED: This will be set dynamically.
+		// MODIFIED: This will be set dynamically based on total letters.
+		this.TOTAL_MAX_SCORE = 0;
 		this.SELECTOR_SCREEN_WIDTH = sharedConfig.SELECTOR_SCREEN_WIDTH;
 		this.RIGHT_SCORE_SCREEN_WIDTH = sharedConfig.RIGHT_SCORE_SCREEN_WIDTH;
 
@@ -37,28 +42,30 @@ class TopScore {
 		console.log('TopScore: init()');
 
 		this.scene.game.events.on('boardConfigurationChanged', this.handleBoardChange, this);
-		// MODIFIED: Listen for the 'wordCompleted' event instead of 'scorePoint'.
-		this.scene.game.events.on('wordCompleted', this.incrementScore, this);
-		// REMOVED: The 'maxScoreChanged' event is no longer needed.
+		// MODIFIED: Listen for 'correctDrop' to score each letter.
+		this.scene.game.events.on('correctDrop', this.incrementScore, this);
 	}
 
 	handleBoardChange(config) {
-		this.currentScore = 0; // Reset completed words count.
+		this.currentScore = 0;
 		this.gameOverTriggered = false;
+		// NEW: Reset percentage for the new round.
+		this.currentPercentage = 0;
 
-		// NEW: Set max score based on the number of available words for the selected length.
+		// MODIFIED: Set max score based on the total number of letters for the selected word length.
 		const wordLength = config.sides.toString();
 		const wordList = this.wordData[wordLength] || [];
-		this.TOTAL_MAX_SCORE = wordList.length;
+		// The total score is the number of words multiplied by the length of each word.
+		this.TOTAL_MAX_SCORE = wordList.length * config.sides;
 
-		console.log(`TopScore: New board with ${config.sides} goals. Max score (total words) is ${this.TOTAL_MAX_SCORE}`);
+		console.log(`TopScore: New board with ${config.sides} goals. Max score (total letters) is ${this.TOTAL_MAX_SCORE}`);
 
 		this.drawScoreboard();
 		this.updateTotalScoreBar();
 	}
 
 	/**
-	 * NEW: This method is called when a word is successfully spelled.
+	 * MODIFIED: This method is called when a letter is correctly placed.
 	 */
 	incrementScore() {
 		this.currentScore++;
@@ -70,6 +77,8 @@ class TopScore {
 		if (this.totalProgressContainer) this.totalProgressContainer.destroy();
 		if (this.totalScoreText) this.totalScoreText.destroy();
 		if (this.userNameText) this.userNameText.destroy();
+		// NEW: Stop any active tween when redrawing.
+		if (this.percentageTween) this.percentageTween.stop();
 		this.totalProgressRectangles = [];
 		this.lastRectanglesShown = 0;
 
@@ -112,8 +121,8 @@ class TopScore {
 			align: 'center'
 		}).setOrigin(0.5);
 
-		// MODIFIED: The text now shows word count instead of a percentage.
-		this.totalScoreText = this.scene.add.text(barX + barWidth - 300, barY, `Words: 0 / ${this.TOTAL_MAX_SCORE}`, {
+		// MODIFIED: The text now shows the score as a percentage.
+		this.totalScoreText = this.scene.add.text(barX + barWidth - 300, barY, '0%', {
 			font: '28px monospace',
 			fill: '#FFFFFF',
 			stroke: '#000000',
@@ -127,16 +136,32 @@ class TopScore {
 			return;
 		}
 
-		// MODIFIED: The score is now the number of completed words.
+		// MODIFIED: The score is now the number of correctly placed letters.
 		const totalScore = this.currentScore;
-		const targetPercentage = this.TOTAL_MAX_SCORE > 0 ?
-			Math.floor((totalScore / this.TOTAL_MAX_SCORE) * 100) :
-			0;
+		const targetPercentage = this.TOTAL_MAX_SCORE > 0
+			? Math.floor((totalScore / this.TOTAL_MAX_SCORE) * 100)
+			: 0;
 
-		// MODIFIED: Update the score text directly without a tween.
-		if (this.totalScoreText) {
-			this.totalScoreText.setText(`Words: ${totalScore} / ${this.TOTAL_MAX_SCORE}`);
+		// MODIFIED: Animate the percentage text for a smoother update.
+		if (this.percentageTween) {
+			this.percentageTween.stop();
 		}
+
+		this.percentageTween = this.scene.tweens.addCounter({
+			from: this.currentPercentage,
+			to: targetPercentage,
+			duration: Math.abs(targetPercentage - this.currentPercentage) * 20,
+			ease: 'Linear',
+			onUpdate: (tween) => {
+				const value = Math.floor(tween.getValue());
+				if (this.totalScoreText) {
+					this.totalScoreText.setText(`${value}%`);
+				}
+			},
+			onComplete: () => {
+				this.currentPercentage = targetPercentage;
+			}
+		});
 
 		const rectanglesToShow = Math.floor((targetPercentage / 100) * this.maxRectangles);
 
@@ -168,11 +193,11 @@ class TopScore {
 
 		this.lastRectanglesShown = rectanglesToShow;
 
-		// MODIFIED: Game over is triggered when all words for that length are completed.
+		// MODIFIED: Game over is triggered when all letters of all words for that length are completed.
 		if (totalScore >= this.TOTAL_MAX_SCORE && !this.gameOverTriggered && this.TOTAL_MAX_SCORE > 0) {
 			this.gameOverTriggered = true;
 			this.scene.game.events.emit('gameOver');
-			console.log('Game Over event emitted! All words completed.');
+			console.log('Game Over event emitted! All letters completed.');
 		}
 	}
 
