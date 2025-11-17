@@ -128,13 +128,12 @@ class BoardView {
 		if (this.boardTexture.width !== canvasWidth || this.boardTexture.height !== canvasHeight) {
 			this.boardTexture.setSize(canvasWidth, canvasHeight);
 			this.boardImage.setDisplaySize(canvasWidth * this.PIXEL_SCALE, canvasHeight * this.PIXEL_SCALE);
-			const centerX = this.scene.cameras.main.width / 2;
-			const centerY = this.scene.cameras.main.height / 2;
-			if (canvasWidth > canvasHeight) {
-				this.boardImage.setPosition(centerX - (canvasWidth - canvasHeight - 40), centerY);
-			} else {
-				this.boardImage.setPosition(centerX, centerY - ((canvasHeight - canvasWidth) / 2));
-			}
+			// MODIFIED: Removed incorrect repositioning logic.
+			// The board's position is now exclusively managed by the handleResize method
+			// to ensure it's always correctly centered within the designated play area,
+			// accounting for the surrounding UI elements. This fixes a bug where the board
+			// would misalign and overlap with the top score bar when the number of goals
+			// caused the board's underlying texture to resize.
 		}
 		const rectX = (canvasWidth - rectWidth) / 2;
 		const rectY = (canvasHeight - rectHeight) / 2;
