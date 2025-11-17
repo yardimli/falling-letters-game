@@ -287,22 +287,47 @@ class BallManager {
 	}
 
 	/**
-	 * NEW: Checks if the current word has been fully spelled.
+	 * MODIFIED: Checks if the current word has been fully spelled and triggers an animation.
 	 */
 	checkForWordCompletion() {
 		if (this.placedState.every(isPlaced => isPlaced)) {
 			console.log(`Word complete: ${this.currentWord}`);
-			// NEW: Emit an event that the TopScore manager can listen for.
 			this.scene.game.events.emit('wordCompleted');
 
-			this.scene.time.delayedCall(2000, () => {
-				this.balls.getChildren().forEach(ball => {
-					this.fadeAndDestroyBall(ball, false);
+			// MODIFIED: Animate balls zooming and fading out upon word completion.
+			// A brief pause to appreciate the completed word before the animation starts.
+			this.scene.time.delayedCall(1000, () => {
+				const ballsToAnimate = this.balls.getChildren();
+				const animationDuration = 500;
+
+				// If for some reason there are no balls, proceed to the next word to avoid getting stuck.
+				if (ballsToAnimate.length === 0) {
+					this.selectNextWord();
+					return;
+				}
+
+				ballsToAnimate.forEach((ball, index) => {
+					this.scene.tweens.add({
+						targets: ball,
+						scale: 0, // "Zoom out" effect.
+						alpha: 0, // "Fade out" effect.
+						duration: animationDuration,
+						ease: 'Back.easeIn', // An ease that gives a nice accelerating feel to the zoom.
+						delay: index * 75, // Stagger the animation start for a nice visual cascade effect.
+						onComplete: () => {
+							// The onComplete callback fires for each ball's tween. We only want to
+							// proceed to the next word after the VERY LAST ball has finished its animation.
+							if (index === ballsToAnimate.length - 1) {
+								// A short delay after the animation finishes before setting up the new word.
+								this.scene.time.delayedCall(250, this.selectNextWord, [], this);
+							}
+						}
+					});
 				});
-				this.selectNextWord();
 			}, [], this);
 		}
 	}
+
 
 	/**
 	 * NEW: Selects a new word and sets up the game state for the new round.
