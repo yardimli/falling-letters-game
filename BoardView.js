@@ -78,7 +78,13 @@ class BoardView {
 		}
 		this.currentSides = config.sides;
 		this.goals = config.goals;
-		this.drawBoardShape();
+
+		// MODIFIED: Instead of redrawing directly, trigger a full resize and reposition.
+		// This ensures that the board's position is updated correctly if its
+		// underlying texture needs to change size to accommodate more goals.
+		// This fixes the misalignment between visual goals and their physics sensors.
+		this.handleResize(this.scene.scale.gameSize);
+
 		this.scheduleNextStretchGlitch();
 		this.scheduleNextBorderGlitch();
 	}
