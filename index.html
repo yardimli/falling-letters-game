@@ -1,50 +1,29 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-	<title>Phaser 3 - Advanced Glitch Board</title>
-	<!-- Load the Phaser library -->
-	<script src="phaser/phaser.min.js"></script>
-
-	<!-- Custom Styles -->
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Phaser Spelling Game</title>
 	<style>
-		html, body {
+		body {
 			margin: 0;
 			padding: 0;
-			height: 100%;
-			width: 100%;
-			overflow: hidden; /* Hide scroll bars */
-			background-color: #000;
+			overflow: hidden;
+			background-color: #2d2d2d;
+			/* Hide the default system cursor */
+			cursor: none;
 		}
 		canvas {
 			display: block;
-			/* Hide the default system cursor so we can draw our own. */
+			/* Ensure canvas also hides the cursor */
 			cursor: none;
 		}
 	</style>
+	<!-- Load Phaser -->
+	<script src="https://cdn.jsdelivr.net/npm/phaser@3.80.0/dist/phaser.min.js"></script>
 </head>
 <body>
-
-<!-- Load shared code and constants -->
-<script src="globals.js"></script>
-
-<!-- Load the centralized game configuration before the scenes that use it -->
-<script src="config.js"></script>
-
-<!-- Load manager classes first -->
-<script src="BoardSetup.js"></script>
-<script src="BoardView.js"></script>
-<script src="BallManager.js"></script>
-<script src="TopScore.js"></script>
-<!-- REMOVED: The BottomScore script is no longer needed. -->
-<script src="RightScore.js"></script>
-<!-- MODIFIED: Added the new GameOver manager script -->
-<script src="GameOver.js"></script>
-
-<!-- Load the new main GameScene -->
-<script src="GameScene.js"></script>
-
-<!-- Load the main game configuration and start the game -->
-<script src="main.js"></script>
-
+<!-- Game Entry Point -->
+<script type="module" src="./src/main.js"></script>
 </body>
 </html>
