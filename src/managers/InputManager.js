@@ -2,6 +2,7 @@ export class InputManager {
     constructor(scene) {
         this.scene = scene;
         this.customCursor = null;
+        this.draggedObject = null; // NEW: Track the object currently being dragged
     }
 
     create() {
@@ -39,10 +40,12 @@ export class InputManager {
             this.scene.sound.play('click');
 
             gameObject.isDragging = true;
+            this.draggedObject = gameObject; // NEW: Set reference
 
-            // Stop physics
-            gameObject.body.setAllowGravity(false);
-            gameObject.body.setVelocity(0, 0);
+            // NEW: Do NOT disable physics/gravity.
+            // We want the physics engine to handle collisions while dragging.
+            // gameObject.body.setAllowGravity(false); // Removed
+            // gameObject.body.setVelocity(0, 0);      // Removed
 
             // Highlight: Yellow
             const circle = gameObject.list[0];
@@ -50,26 +53,60 @@ export class InputManager {
 
             this.scene.children.bringToTop(gameObject);
             this.bringCursorToTop();
+
+            // NEW: Notify scene that drag started (to hide bottom walls)
+            if (this.scene.handleDragStart) {
+                this.scene.handleDragStart();
+            }
         });
 
         this.scene.input.on('drag', (pointer, gameObject, dragX, dragY) => {
-            gameObject.x = dragX;
-            gameObject.y = dragY;
+            // NEW: Do NOT set x/y directly. This breaks physics collisions.
+            // gameObject.x = dragX;
+            // gameObject.y = dragY;
 
+            // Just update the cursor visual
             this.customCursor.x = pointer.x;
             this.customCursor.y = pointer.y;
         });
 
         this.scene.input.on('dragend', (pointer, gameObject) => {
             gameObject.isDragging = false;
+            this.draggedObject = null; // NEW: Clear reference
 
             // Reset Highlight: Blue
             const circle = gameObject.list[0];
             circle.setFillStyle(0x0077ff);
 
+            // NEW: Notify scene that drag ended (to schedule wall reappearance)
+            if (this.scene.handleDragEnd) {
+                this.scene.handleDragEnd();
+            }
+
             // Trigger logic in GameScene
             this.scene.handleBallDrop(gameObject);
         });
+    }
+
+    // NEW: Update loop to handle physics-based dragging
+    update() {
+        if (this.draggedObject && this.draggedObject.active && this.draggedObject.body) {
+            const pointer = this.scene.input.activePointer;
+
+            // Calculate vector from ball to pointer
+            // Using a P-controller approach (spring-like)
+            const speed = 10; // Responsiveness factor
+            const maxVelocity = 1000; // Prevent tunneling through walls
+
+            let vX = (pointer.x - this.draggedObject.x) * speed;
+            let vY = (pointer.y - this.draggedObject.y) * speed;
+
+            // Clamp velocity
+            vX = Phaser.Math.Clamp(vX, -maxVelocity, maxVelocity);
+            vY = Phaser.Math.Clamp(vY, -maxVelocity, maxVelocity);
+
+            this.draggedObject.body.setVelocity(vX, vY);
+        }
     }
 
     bringCursorToTop() {

@@ -1,0 +1,11 @@
+add a physical wall (visible line) under the goals so balls cant bounce into a goal
+when balls first spawn, avoid spawning them inside the goals
+the physical line should disappear when user is dragging a ball and reappear 1 second after the ball is released
+
+3 seconds after the game starts, the letters inside the goals should randomly glitch out of the screen 1 second apart
+
+when game starts choose 3 random words from list
+progress bar should increase for each correct letter placed
+make letters glitch in at the beginning of the word before glitching out
+improve the ui make it more game like
+when ball is dropped only give it velocity and direction if it is in the wrong goal

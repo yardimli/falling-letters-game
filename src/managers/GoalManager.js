@@ -4,6 +4,10 @@ export class GoalManager {
         this.goals = [];
         // Create a static group for the walls
         this.walls = this.scene.physics.add.staticGroup();
+        // NEW: Create a separate static group for bottom walls to manage them easily
+        this.bottomWalls = this.scene.physics.add.staticGroup();
+        // NEW: Track timers for the glitch effect to clean them up on level reset
+        this.glitchTimers = [];
 
         // Settings
         this.goalSize = 70;
@@ -87,7 +91,66 @@ export class GoalManager {
             );
             this.scene.physics.add.existing(rightWall, true);
             this.walls.add(rightWall);
+
+            // NEW: Bottom Wall (Initially visible)
+            const bottomWall = this.scene.add.rectangle(
+                x,
+                y + halfSize + halfThick,
+                this.goalSize + (this.wallThickness * 2),
+                this.wallThickness,
+                this.wallColor
+            );
+            this.scene.physics.add.existing(bottomWall, true);
+            this.bottomWalls.add(bottomWall);
         }
+    }
+
+    // NEW: Initiates the glitch sequence for the letters inside the goals
+    startGlitchSequence() {
+        // Get the text objects from the goals (index 1 in container children)
+        const texts = this.goals.map(goal => goal.list[1]);
+
+        // Shuffle them to randomize the order
+        const shuffledTexts = Phaser.Utils.Array.Shuffle([...texts]);
+
+        shuffledTexts.forEach((textObj, index) => {
+            // Start 3 seconds after call, then 1 second apart
+            const delay = 3000 + (index * 1000);
+
+            const timer = this.scene.time.delayedCall(delay, () => {
+                // Ensure object is still active before animating
+                if (textObj.active) {
+                    this.runGlitchEffect(textObj);
+                }
+            });
+            this.glitchTimers.push(timer);
+        });
+    }
+
+    // NEW: Performs the visual glitch animation
+    runGlitchEffect(textObj) {
+        // 1. Jitter/Shake
+        this.scene.tweens.add({
+            targets: textObj,
+            x: { from: textObj.x, to: textObj.x + Phaser.Math.Between(-5, 5) },
+            y: { from: textObj.y, to: textObj.y + Phaser.Math.Between(-5, 5) },
+            alpha: { from: 1, to: 0.5 },
+            duration: 50,
+            yoyo: true,
+            repeat: 5,
+            onComplete: () => {
+                // 2. Fly out of screen (Glitch out)
+                this.scene.tweens.add({
+                    targets: textObj,
+                    y: -1000, // Move well off-screen relative to container
+                    scaleX: 0.1, // Distort
+                    scaleY: 2,
+                    alpha: 0,
+                    duration: 200,
+                    ease: 'Power1'
+                });
+            }
+        });
     }
 
     getGoals() {
@@ -98,13 +161,36 @@ export class GoalManager {
         return this.walls;
     }
 
+    // NEW: Get the bottom walls group
+    getBottomWallGroup() {
+        return this.bottomWalls;
+    }
+
+    // NEW: Toggle visibility and physics of bottom walls
+    toggleBottomWalls(enabled) {
+        this.bottomWalls.children.iterate((wall) => {
+            if (wall && wall.body) {
+                wall.setVisible(enabled);
+                wall.body.enable = enabled;
+            }
+        });
+    }
+
     clear() {
+        // NEW: Clear any pending glitch timers
+        if (this.glitchTimers) {
+            this.glitchTimers.forEach(timer => timer.remove(false));
+        }
+        this.glitchTimers = [];
+
         // Destroy visual goals
         this.goals.forEach(goal => goal.destroy());
         this.goals = [];
 
         // Clear physics walls (remove from scene and destroy)
         this.walls.clear(true, true);
+        // NEW: Clear bottom walls
+        this.bottomWalls.clear(true, true);
     }
 
     resize(width, height, totalLetters) {

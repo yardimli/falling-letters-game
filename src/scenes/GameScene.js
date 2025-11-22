@@ -30,6 +30,7 @@ export class GameScene extends Phaser.Scene {
         this.correctCount = 0;
         this.wrongCount = 0;
         this.totalLetters = 0;
+        this.wallTimer = null; // NEW: Timer for wall reappearance
 
         // Physics Boundaries
         this.physics.world.setBounds(0, 0, this.scale.width, this.scale.height);
@@ -56,6 +57,11 @@ export class GameScene extends Phaser.Scene {
     update() {
         // Delegate update logic to BallManager (handling idle movement)
         this.ballManager.update();
+
+        // NEW: Update InputManager to handle physics-based dragging
+        if (this.inputManager) {
+            this.inputManager.update();
+        }
     }
 
     startNewLevel() {
@@ -83,14 +89,41 @@ export class GameScene extends Phaser.Scene {
         this.ballManager.enableCollisions();
 
         // NEW: Enable collision between balls and goal walls
-        // We assume ballManager exposes the group via 'balls' property or a getter
-        // If ballManager.balls is the group:
-        if (this.ballManager.balls && this.goalManager.getWallGroup()) {
-            this.physics.add.collider(this.ballManager.balls, this.goalManager.getWallGroup());
+        // We use the physics group 'ballGroup' instead of the array 'balls' for proper collision handling
+        if (this.ballManager.ballGroup) {
+            // Main walls (Top, Left, Right)
+            if (this.goalManager.getWallGroup()) {
+                this.physics.add.collider(this.ballManager.ballGroup, this.goalManager.getWallGroup());
+            }
+            // Bottom walls
+            if (this.goalManager.getBottomWallGroup()) {
+                this.physics.add.collider(this.ballManager.ballGroup, this.goalManager.getBottomWallGroup());
+            }
         }
 
         // Ensure cursor is on top
         this.inputManager.bringCursorToTop();
+
+        // NEW: Start the glitch sequence for the goal letters
+        // 3 seconds after level start, letters will randomly glitch out
+        this.goalManager.startGlitchSequence();
+    }
+
+    // NEW: Handle Drag Start (Hide bottom walls)
+    handleDragStart() {
+        // Cancel any pending reappear timer to avoid flickering
+        if (this.wallTimer) {
+            this.wallTimer.remove(false);
+            this.wallTimer = null;
+        }
+        this.goalManager.toggleBottomWalls(false);
+    }
+
+    // NEW: Handle Drag End (Show bottom walls after delay)
+    handleDragEnd() {
+        this.wallTimer = this.time.delayedCall(1000, () => {
+            this.goalManager.toggleBottomWalls(true);
+        });
     }
 
     /**

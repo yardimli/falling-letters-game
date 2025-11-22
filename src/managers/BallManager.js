@@ -19,7 +19,12 @@ export class BallManager {
             const char = word[i];
 
             const rX = Phaser.Math.Between(50, this.scene.scale.width - 50);
-            const rY = Phaser.Math.Between(this.scene.scale.height / 2, this.scene.scale.height - 50);
+
+            // MODIFIED: Ensure balls spawn below the goal area.
+            // Goals are at y=140 with size 70, so bottom is approx 175-180.
+            // We set a safe minimum Y of 250.
+            const minY = Math.max(this.scene.scale.height / 2, 250);
+            const rY = Phaser.Math.Between(minY, this.scene.scale.height - 50);
 
             const ball = this.scene.add.container(rX, rY);
             ball.setSize(50, 50);
@@ -90,7 +95,6 @@ export class BallManager {
                 // Only affect balls that are not locked in a goal and not currently being dragged
                 if (!ball.isLocked && !ball.isDragging && ball.body) {
                     // If speed is very low (effectively stopped)
-                    console.log('Ball speed:', ball.body.speed);
                     if (ball.body.speed < 1) {
                         console.log('Ball stopped, reapplying velocity:', ball.char);
                         // Give a random vector and velocity
