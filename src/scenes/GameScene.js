@@ -13,7 +13,7 @@ export class GameScene extends Phaser.Scene {
         // Load JSON via AJAX
         this.load.json('wordData', 'assets/words.json');
 
-        // --- New Audio Assets ---
+        // --- Audio Assets ---
         this.load.audio('drop', 'assets/audio/DSGNBass_Smooth Sub Drop Bass Downer.wav');
         this.load.audio('bounce1', 'assets/audio/basketball_bounce_single_3.wav');
         this.load.audio('bounce2', 'assets/audio/basketball_bounce_single_5.wav');
@@ -26,11 +26,13 @@ export class GameScene extends Phaser.Scene {
 
     create() {
         // State
+        this.wordQueue = []; // NEW: Queue for the 3 words
         this.currentWord = "";
-        this.correctCount = 0;
-        this.wrongCount = 0;
-        this.totalLetters = 0;
-        this.wallTimer = null; // NEW: Timer for wall reappearance
+        this.wordCorrectCount = 0; // Correct letters for current word
+        this.globalCorrectCount = 0; // Correct letters for entire session (3 words)
+        this.globalWrongCount = 0;
+        this.totalSessionLetters = 0; // Total letters across all 3 words
+        this.wallTimer = null;
 
         // Physics Boundaries
         this.physics.world.setBounds(0, 0, this.scale.width, this.scale.height);
@@ -48,7 +50,7 @@ export class GameScene extends Phaser.Scene {
         this.inputManager.create();
 
         // Start Logic
-        this.startNewLevel();
+        this.initGameSession();
 
         // Event Listeners
         this.scale.on('resize', this.resize, this);
@@ -58,40 +60,53 @@ export class GameScene extends Phaser.Scene {
         // Delegate update logic to BallManager (handling idle movement)
         this.ballManager.update();
 
-        // NEW: Update InputManager to handle physics-based dragging
+        // Update InputManager to handle physics-based dragging
         if (this.inputManager) {
             this.inputManager.update();
         }
     }
 
-    startNewLevel() {
-        // Cleanup previous level data via managers
+    // NEW: Initializes a session of 3 words
+    initGameSession() {
+        const data = this.cache.json.get('wordData');
+        // Pick 3 unique random words
+        const allWords = Phaser.Utils.Array.Shuffle([...data.words]);
+        this.wordQueue = allWords.slice(0, 3);
+
+        // Calculate total letters for the progress bar
+        this.totalSessionLetters = this.wordQueue.reduce((acc, word) => acc + word.length, 0);
+        this.globalCorrectCount = 0;
+        this.globalWrongCount = 0;
+
+        this.scoreBoard.reset();
+        this.startNextWord();
+    }
+
+    // NEW: Starts the next word in the queue
+    startNextWord() {
+        if (this.wordQueue.length === 0) {
+            // Session Complete
+            alert("All Words Complete!");
+            this.initGameSession(); // Restart
+            return;
+        }
+
+        // Cleanup previous level data
         this.ballManager.clear();
         this.goalManager.clear();
 
-        this.correctCount = 0;
-        this.wrongCount = 0;
-
-        // Get Random Word
-        const data = this.cache.json.get('wordData');
-        this.currentWord = Phaser.Utils.Array.GetRandom(data.words);
-        this.totalLetters = this.currentWord.length;
-
-        // Reset UI
-        this.scoreBoard.reset();
+        this.currentWord = this.wordQueue.pop();
+        this.wordCorrectCount = 0;
 
         // Build Level via Managers
         this.goalManager.createGoals(this.currentWord);
         this.ballManager.createLetterBalls(this.currentWord);
 
         // --- Enable Collisions ---
-        // Enable ball-to-ball collision
         this.ballManager.enableCollisions();
 
-        // NEW: Enable collision between balls and goal walls
-        // We use the physics group 'ballGroup' instead of the array 'balls' for proper collision handling
         if (this.ballManager.ballGroup) {
-            // Main walls (Top, Left, Right)
+            // Main walls
             if (this.goalManager.getWallGroup()) {
                 this.physics.add.collider(this.ballManager.ballGroup, this.goalManager.getWallGroup());
             }
@@ -104,14 +119,16 @@ export class GameScene extends Phaser.Scene {
         // Ensure cursor is on top
         this.inputManager.bringCursorToTop();
 
-        // NEW: Start the glitch sequence for the goal letters
-        // 3 seconds after level start, letters will randomly glitch out
+        // Start the glitch sequence
         this.goalManager.startGlitchSequence();
     }
 
-    // NEW: Handle Drag Start (Hide bottom walls)
+    // Kept for compatibility if called externally, but logic moved to startNextWord
+    startNewLevel() {
+        this.initGameSession();
+    }
+
     handleDragStart() {
-        // Cancel any pending reappear timer to avoid flickering
         if (this.wallTimer) {
             this.wallTimer.remove(false);
             this.wallTimer = null;
@@ -119,7 +136,6 @@ export class GameScene extends Phaser.Scene {
         this.goalManager.toggleBottomWalls(false);
     }
 
-    // NEW: Handle Drag End (Show bottom walls after delay)
     handleDragEnd() {
         this.wallTimer = this.time.delayedCall(1000, () => {
             this.goalManager.toggleBottomWalls(true);
@@ -131,24 +147,32 @@ export class GameScene extends Phaser.Scene {
      * @param {Phaser.GameObjects.Container} ball
      */
     handleBallDrop(ball) {
-        let landed = false;
+        let landedInGoal = false;
         const goals = this.goalManager.getGoals();
 
         for (let goal of goals) {
             const distance = Phaser.Math.Distance.Between(ball.x, ball.y, goal.x, goal.y);
 
-            // Increased distance check because goals are bigger now
+            // Check if ball is dropped INSIDE a goal area
             if (distance < 60 && !goal.isFilled) {
+                landedInGoal = true;
                 if (ball.char === goal.expectedChar) {
                     this.handleCorrectDrop(ball, goal);
-                    landed = true;
-                    break;
+                } else {
+                    // MODIFIED: Only apply rejection velocity if inside the WRONG goal
+                    this.handleWrongDrop(ball);
                 }
+                break;
             }
         }
 
-        if (!landed) {
-            this.handleWrongDrop(ball);
+        // MODIFIED: If not in any goal, just release it without rejection velocity
+        if (!landedInGoal) {
+            ball.body.setAllowGravity(true);
+            // We do NOT call handleWrongDrop here, so it doesn't shoot down.
+            // It just falls naturally or floats depending on physics config.
+            // Ensure it has some damping so it doesn't fly away if it was moving fast
+            ball.body.setDrag(100);
         }
     }
 
@@ -167,14 +191,16 @@ export class GameScene extends Phaser.Scene {
         // Visual Feedback: Green
         ball.list[0].setFillStyle(0x00cc44);
 
-        this.correctCount++;
-        this.scoreBoard.update(this.correctCount, this.wrongCount, this.totalLetters);
+        this.wordCorrectCount++;
+        this.globalCorrectCount++;
 
-        if (this.correctCount === this.totalLetters) {
-            this.time.delayedCall(500, () => {
-                // Simple alert for now, could be a UI modal
-                alert("Word Complete!");
-                this.startNewLevel();
+        // Update ScoreBoard with global progress
+        this.scoreBoard.update(this.globalCorrectCount, this.globalWrongCount, this.totalSessionLetters);
+
+        // Check if current word is complete
+        if (this.wordCorrectCount === this.currentWord.length) {
+            this.time.delayedCall(1000, () => {
+                this.startNextWord();
             });
         }
     }
@@ -185,11 +211,9 @@ export class GameScene extends Phaser.Scene {
 
         ball.body.setAllowGravity(true);
 
-        // NEW LOGIC: Push downwards
-        // Since there are walls on Top, Left, and Right, the only exit is down.
-        // We apply a strong positive Y velocity.
-        // We also add a slight random X velocity to prevent stacking perfectly.
-        ball.body.setVelocity(Phaser.Math.Between(-20, 20), 300);
+        // NEW LOGIC: Push downwards (Rejection)
+        // Only called if the ball was actually inside a goal but wrong
+        ball.body.setVelocity(Phaser.Math.Between(-20, 20), 200);
 
         // Visual Feedback: Red then fade to Blue
         const circle = ball.list[0];
@@ -201,8 +225,8 @@ export class GameScene extends Phaser.Scene {
             duration: 500
         });
 
-        this.wrongCount++;
-        this.scoreBoard.update(this.correctCount, this.wrongCount, this.totalLetters);
+        this.globalWrongCount++;
+        this.scoreBoard.update(this.globalCorrectCount, this.globalWrongCount, this.totalSessionLetters);
     }
 
     resize(gameSize) {
@@ -213,9 +237,6 @@ export class GameScene extends Phaser.Scene {
         this.physics.world.setBounds(0, 0, width, height);
 
         this.scoreBoard.resize(width, height);
-        this.goalManager.resize(width, height, this.totalLetters);
-
-        // On resize, we might want to restart the level to fix static physics bodies positions
-        // this.startNewLevel();
+        this.goalManager.resize(width, height, this.currentWord.length);
     }
 }
