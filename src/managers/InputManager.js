@@ -1,27 +1,30 @@
 export class InputManager {
-    constructor(scene) {
+    constructor (scene) {
         this.scene = scene;
         this.customCursor = null;
         this.draggedObject = null; // Track the object currently being dragged
         this.currentPointer = null; // NEW: Track the specific pointer (mouse or touch ID)
     }
 
-    create() {
+    create () {
         // --- Custom Cursor Setup ---
         this.scene.input.setDefaultCursor('none');
 
-        const cursorSize = 32;
-        const cursorGraphics = this.scene.make.graphics();
-        cursorGraphics.lineStyle(2, 0xFFFFFF, 1);
+        // MODIFIED: Check if texture exists to avoid recreation/warnings
+        if (!this.scene.textures.exists('customCursorTexture')) {
+            const cursorSize = 32;
+            const cursorGraphics = this.scene.make.graphics();
+            cursorGraphics.lineStyle(2, 0xFFFFFF, 1);
 
-        cursorGraphics.moveTo(cursorSize / 2, 0);
-        cursorGraphics.lineTo(cursorSize / 2, cursorSize);
-        cursorGraphics.moveTo(0, cursorSize / 2);
-        cursorGraphics.lineTo(cursorSize, cursorSize / 2);
-        cursorGraphics.strokePath();
+            cursorGraphics.moveTo(cursorSize / 2, 0);
+            cursorGraphics.lineTo(cursorSize / 2, cursorSize);
+            cursorGraphics.moveTo(0, cursorSize / 2);
+            cursorGraphics.lineTo(cursorSize, cursorSize / 2);
+            cursorGraphics.strokePath();
 
-        cursorGraphics.generateTexture('customCursorTexture', cursorSize, cursorSize);
-        cursorGraphics.destroy();
+            cursorGraphics.generateTexture('customCursorTexture', cursorSize, cursorSize);
+            cursorGraphics.destroy();
+        }
 
         this.customCursor = this.scene.add.image(0, 0, 'customCursorTexture');
         this.customCursor.setDepth(1000);
@@ -29,7 +32,7 @@ export class InputManager {
         this.setupInputListeners();
     }
 
-    setupInputListeners() {
+    setupInputListeners () {
         // Update custom cursor position
         this.scene.input.on('pointermove', (pointer) => {
             this.customCursor.x = pointer.x;
@@ -88,10 +91,9 @@ export class InputManager {
     }
 
     // Update loop to handle physics-based dragging
-    update() {
+    update () {
         // MODIFIED: Check for currentPointer to ensure we follow the correct finger on touch devices
         if (this.draggedObject && this.draggedObject.active && this.draggedObject.body && this.currentPointer) {
-
             // Calculate vector from ball to the specific pointer being used
             // Using a P-controller approach (spring-like)
             const speed = 10; // Responsiveness factor
@@ -108,7 +110,7 @@ export class InputManager {
         }
     }
 
-    bringCursorToTop() {
+    bringCursorToTop () {
         if (this.customCursor) {
             this.scene.children.bringToTop(this.customCursor);
         }

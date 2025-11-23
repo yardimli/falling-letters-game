@@ -1,15 +1,16 @@
 export class SelectionScene extends Phaser.Scene {
-    constructor() {
+    constructor () {
         super({ key: 'SelectionScene' });
+        this.customCursor = null; // NEW: Track custom cursor
     }
 
-    init() {
+    init () {
         this.settings = this.registry.get('gameSettings') || { lang: 'en', count: 3 };
         this.completedWords = this.registry.get('completedWords') || [];
         this.wordsToDisplay = [];
     }
 
-    preload() {
+    preload () {
         // Load the JSON data first
         this.load.json('wordData', 'assets/words.json');
 
@@ -17,8 +18,11 @@ export class SelectionScene extends Phaser.Scene {
         this.createParticleTexture();
     }
 
-    create() {
+    create () {
         this.createBackground();
+
+        // NEW: Initialize custom cursor
+        this.createCustomCursor();
 
         const data = this.cache.json.get('wordData');
 
@@ -56,6 +60,7 @@ export class SelectionScene extends Phaser.Scene {
             this.load.once('complete', () => {
                 this.children.removeAll(); // Remove loading text
                 this.createBackground(); // Re-add background
+                this.createCustomCursor(); // Re-add cursor after clear
                 this.buildGrid();
                 this.checkWinCondition();
             });
@@ -69,7 +74,41 @@ export class SelectionScene extends Phaser.Scene {
         this.cameras.main.fadeIn(500, 0, 0, 0);
     }
 
-    createBackground() {
+    // NEW: Create and manage the custom cursor
+    createCustomCursor () {
+        this.input.setDefaultCursor('none');
+
+        // Generate texture if it doesn't exist (same as InputManager)
+        if (!this.textures.exists('customCursorTexture')) {
+            const cursorSize = 32;
+            const cursorGraphics = this.make.graphics();
+            cursorGraphics.lineStyle(2, 0xFFFFFF, 1);
+
+            cursorGraphics.moveTo(cursorSize / 2, 0);
+            cursorGraphics.lineTo(cursorSize / 2, cursorSize);
+            cursorGraphics.moveTo(0, cursorSize / 2);
+            cursorGraphics.lineTo(cursorSize, cursorSize / 2);
+            cursorGraphics.strokePath();
+
+            cursorGraphics.generateTexture('customCursorTexture', cursorSize, cursorSize);
+            cursorGraphics.destroy();
+        }
+
+        // Create the cursor sprite
+        if (this.customCursor) this.customCursor.destroy(); // Cleanup if exists
+        this.customCursor = this.add.image(0, 0, 'customCursorTexture');
+        this.customCursor.setDepth(2000); // Ensure it's on top of everything
+        this.customCursor.setVisible(false); // Hide until mouse moves
+
+        // Update position
+        this.input.on('pointermove', (pointer) => {
+            this.customCursor.setVisible(true);
+            this.customCursor.x = pointer.x;
+            this.customCursor.y = pointer.y;
+        });
+    }
+
+    createBackground () {
         const width = this.scale.width;
         const height = this.scale.height;
         this.bgGraphics = this.add.graphics();
@@ -78,7 +117,7 @@ export class SelectionScene extends Phaser.Scene {
         this.bgGraphics.setDepth(-100);
     }
 
-    createParticleTexture() {
+    createParticleTexture () {
         if (this.textures.exists('firework')) return;
         const size = 8;
         const texture = this.textures.createCanvas('firework', size, size);
@@ -88,7 +127,7 @@ export class SelectionScene extends Phaser.Scene {
         texture.refresh();
     }
 
-    buildGrid() {
+    buildGrid () {
         const cols = 5;
         const cellWidth = 220;
         const cellHeight = 220;
@@ -118,7 +157,7 @@ export class SelectionScene extends Phaser.Scene {
         });
     }
 
-    createCard(x, y, wordObj) {
+    createCard (x, y, wordObj) {
         const isCompleted = this.completedWords.includes(wordObj.text);
         const container = this.add.container(x, y);
 
@@ -158,7 +197,8 @@ export class SelectionScene extends Phaser.Scene {
             container.add(check);
         } else {
             // Interactive
-            bg.setInteractive({ useHandCursor: true });
+            // MODIFIED: Removed useHandCursor: true to prevent system cursor from appearing
+            bg.setInteractive();
 
             bg.on('pointerover', () => {
                 bg.setFillStyle(0x444444);
@@ -176,7 +216,7 @@ export class SelectionScene extends Phaser.Scene {
         }
     }
 
-    selectWord(wordObj) {
+    selectWord (wordObj) {
         // Transition to GameScene
         this.cameras.main.fadeOut(500, 0, 0, 0);
         this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => {
@@ -184,13 +224,13 @@ export class SelectionScene extends Phaser.Scene {
         });
     }
 
-    checkWinCondition() {
+    checkWinCondition () {
         if (this.completedWords.length === this.wordsToDisplay.length && this.wordsToDisplay.length > 0) {
             this.triggerGameOver();
         }
     }
 
-    triggerGameOver() {
+    triggerGameOver () {
         // Blinking Game Over Text
         const gameOverText = this.add.text(this.scale.width / 2, this.scale.height / 2, 'GAME OVER', {
             fontSize: '120px',
