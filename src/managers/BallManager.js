@@ -20,7 +20,6 @@ export class BallManager {
 
             const rX = Phaser.Math.Between(50, this.scene.scale.width - 50);
 
-            // MODIFIED: Ensure balls spawn below the goal area.
             // Goals are at y=140 with size 70, so bottom is approx 175-180.
             // We set a safe minimum Y of 250.
             const minY = Math.max(this.scene.scale.height / 2, 250);
@@ -29,13 +28,15 @@ export class BallManager {
             const ball = this.scene.add.container(rX, rY);
             ball.setSize(50, 50);
 
-            // Circle (index 0)
-            const circle = this.scene.add.circle(0, 0, 25, 0x0077ff);
-            circle.setStrokeStyle(2, 0xffffff);
+            // MODIFIED: Use the generated 3D texture instead of a flat circle
+            // The texture is grayscale, so we tint it to the desired Blue color (0x0077ff)
+            const ballImage = this.scene.add.image(0, 0, 'ball3d');
+            ballImage.setTint(0x0077ff);
 
             const text = this.scene.add.text(0, 0, char, { fontSize: '32px', fontStyle: 'bold', color: '#ffffff' }).setOrigin(0.5);
 
-            ball.add([circle, text]);
+            // Add image first, then text so text is on top
+            ball.add([ballImage, text]);
 
             // Add to physics group
             this.ballGroup.add(ball);

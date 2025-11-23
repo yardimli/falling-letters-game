@@ -2,7 +2,7 @@ export class InputManager {
     constructor(scene) {
         this.scene = scene;
         this.customCursor = null;
-        this.draggedObject = null; // NEW: Track the object currently being dragged
+        this.draggedObject = null; // Track the object currently being dragged
     }
 
     create() {
@@ -40,31 +40,23 @@ export class InputManager {
             this.scene.sound.play('click');
 
             gameObject.isDragging = true;
-            this.draggedObject = gameObject; // NEW: Set reference
+            this.draggedObject = gameObject;
 
-            // NEW: Do NOT disable physics/gravity.
-            // We want the physics engine to handle collisions while dragging.
-            // gameObject.body.setAllowGravity(false); // Removed
-            // gameObject.body.setVelocity(0, 0);      // Removed
-
-            // Highlight: Yellow
-            const circle = gameObject.list[0];
-            circle.setFillStyle(0xffff00);
+            // MODIFIED: Visual Feedback - Accent Color
+            // Change tint to a lighter blue (Accent) to indicate interaction
+            const ballImage = gameObject.list[0];
+            ballImage.setTint(0x44aaff);
 
             this.scene.children.bringToTop(gameObject);
             this.bringCursorToTop();
 
-            // NEW: Notify scene that drag started (to hide bottom walls)
+            // Notify scene that drag started (to hide bottom walls)
             if (this.scene.handleDragStart) {
                 this.scene.handleDragStart();
             }
         });
 
         this.scene.input.on('drag', (pointer, gameObject, dragX, dragY) => {
-            // NEW: Do NOT set x/y directly. This breaks physics collisions.
-            // gameObject.x = dragX;
-            // gameObject.y = dragY;
-
             // Just update the cursor visual
             this.customCursor.x = pointer.x;
             this.customCursor.y = pointer.y;
@@ -72,13 +64,15 @@ export class InputManager {
 
         this.scene.input.on('dragend', (pointer, gameObject) => {
             gameObject.isDragging = false;
-            this.draggedObject = null; // NEW: Clear reference
+            this.draggedObject = null;
 
-            // Reset Highlight: Blue
-            const circle = gameObject.list[0];
-            circle.setFillStyle(0x0077ff);
+            // MODIFIED: Reset Visual Feedback
+            // Return to original Blue color (0x0077ff)
+            // Note: If dropped in a wrong goal, GameScene will override this with the blinking effect immediately.
+            const ballImage = gameObject.list[0];
+            ballImage.setTint(0x0077ff);
 
-            // NEW: Notify scene that drag ended (to schedule wall reappearance)
+            // Notify scene that drag ended (to schedule wall reappearance)
             if (this.scene.handleDragEnd) {
                 this.scene.handleDragEnd();
             }
@@ -88,7 +82,7 @@ export class InputManager {
         });
     }
 
-    // NEW: Update loop to handle physics-based dragging
+    // Update loop to handle physics-based dragging
     update() {
         if (this.draggedObject && this.draggedObject.active && this.draggedObject.body) {
             const pointer = this.scene.input.activePointer;

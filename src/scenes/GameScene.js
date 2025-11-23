@@ -25,8 +25,11 @@ export class GameScene extends Phaser.Scene {
     }
 
     create() {
+        // NEW: Generate the 3D Ball Texture programmatically
+        this.createBallTexture();
+
         // State
-        this.wordQueue = []; // NEW: Queue for the 3 words
+        this.wordQueue = []; // Queue for the 3 words
         this.currentWord = "";
         this.wordCorrectCount = 0; // Correct letters for current word
         this.globalCorrectCount = 0; // Correct letters for entire session (3 words)
@@ -56,6 +59,39 @@ export class GameScene extends Phaser.Scene {
         this.scale.on('resize', this.resize, this);
     }
 
+    // NEW: Helper to create a 3D-looking sphere texture using Canvas gradients
+    createBallTexture() {
+        // Create a texture with the key 'ball3d'
+        // MODIFIED: Increased size to 64x64 to prevent border clipping.
+        // The ball is 50px (radius 25), plus a border, so 50x50 was too tight.
+        const size = 64;
+        const texture = this.textures.createCanvas('ball3d', size, size);
+        const context = texture.getContext();
+
+        const centerX = size / 2;
+        const centerY = size / 2;
+        const radius = 25; // Matches the physics body radius
+
+        // Create a radial gradient to simulate 3D lighting
+        // Light source offset to top-left relative to center
+        const grd = context.createRadialGradient(centerX - 10, centerY - 10, 2, centerX, centerY, radius);
+        grd.addColorStop(0, '#ffffff'); // Specular highlight (White)
+        grd.addColorStop(1, '#888888'); // Shadow/Base (Gray) - allows tinting
+
+        context.fillStyle = grd;
+        context.beginPath();
+        context.arc(centerX, centerY, radius, 0, Math.PI * 2);
+        context.fill();
+
+        // Add a border
+        // Stroke is centered on the path, so it extends half-width inside and half-width outside
+        context.lineWidth = 3;
+        context.strokeStyle = '#ffffff';
+        context.stroke();
+
+        texture.refresh();
+    }
+
     update() {
         // Delegate update logic to BallManager (handling idle movement)
         this.ballManager.update();
@@ -66,7 +102,7 @@ export class GameScene extends Phaser.Scene {
         }
     }
 
-    // NEW: Initializes a session of 3 words
+    // Initializes a session of 3 words
     initGameSession() {
         const data = this.cache.json.get('wordData');
         // Pick 3 unique random words
@@ -82,7 +118,7 @@ export class GameScene extends Phaser.Scene {
         this.startNextWord();
     }
 
-    // NEW: Starts the next word in the queue
+    // Starts the next word in the queue
     startNextWord() {
         if (this.wordQueue.length === 0) {
             // Session Complete
@@ -159,18 +195,16 @@ export class GameScene extends Phaser.Scene {
                 if (ball.char === goal.expectedChar) {
                     this.handleCorrectDrop(ball, goal);
                 } else {
-                    // MODIFIED: Only apply rejection velocity if inside the WRONG goal
+                    // Only apply rejection velocity if inside the WRONG goal
                     this.handleWrongDrop(ball);
                 }
                 break;
             }
         }
 
-        // MODIFIED: If not in any goal, just release it without rejection velocity
+        // If not in any goal, just release it without rejection velocity
         if (!landedInGoal) {
             ball.body.setAllowGravity(true);
-            // We do NOT call handleWrongDrop here, so it doesn't shoot down.
-            // It just falls naturally or floats depending on physics config.
             // Ensure it has some damping so it doesn't fly away if it was moving fast
             ball.body.setDrag(100);
         }
@@ -189,7 +223,7 @@ export class GameScene extends Phaser.Scene {
         ball.isLocked = true;
 
         // Visual Feedback: Green
-        ball.list[0].setFillStyle(0x00cc44);
+        ball.list[0].setTint(0x00cc44);
 
         this.wordCorrectCount++;
         this.globalCorrectCount++;
@@ -211,18 +245,32 @@ export class GameScene extends Phaser.Scene {
 
         ball.body.setAllowGravity(true);
 
-        // NEW LOGIC: Push downwards (Rejection)
-        // Only called if the ball was actually inside a goal but wrong
+        // Push downwards (Rejection)
         ball.body.setVelocity(Phaser.Math.Between(-20, 20), 200);
 
-        // Visual Feedback: Red then fade to Blue
-        const circle = ball.list[0];
-        circle.setFillStyle(0xff0000);
+        // Visual Feedback - Blink Red and White for 2 seconds
+        const ballImage = ball.list[0];
+        let isRed = true;
 
-        this.tweens.add({
-            targets: circle,
-            fillColor: { from: 0xff0000, to: 0x0077ff },
-            duration: 500
+        // Create a timer event to toggle colors
+        // Blink every 100ms for 20 times = 2000ms (2 seconds)
+        const blinkEvent = this.time.addEvent({
+            delay: 100,
+            repeat: 19,
+            callback: () => {
+                if (ballImage && ballImage.active) {
+                    // Toggle between Red (0xff0000) and White (0xffffff)
+                    ballImage.setTint(isRed ? 0xff0000 : 0xffffff);
+                    isRed = !isRed;
+                }
+            }
+        });
+
+        // After 2 seconds, reset to original Blue color
+        this.time.delayedCall(2000, () => {
+            if (ballImage && ballImage.active) {
+                ballImage.setTint(0x0077ff); // Back to original blue
+            }
         });
 
         this.globalWrongCount++;
