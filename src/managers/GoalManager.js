@@ -2,17 +2,14 @@ export class GoalManager {
     constructor(scene) {
         this.scene = scene;
         this.goals = [];
-        // Create a static group for the walls
         this.walls = this.scene.physics.add.staticGroup();
-        // Create a separate static group for bottom walls to manage them easily
         this.bottomWalls = this.scene.physics.add.staticGroup();
-        // Track timers for the glitch effect to clean them up on level reset
         this.glitchTimers = [];
 
         // Settings
         this.goalSize = 70;
         this.wallThickness = 8;
-        this.wallColor = 0x555555; // Color for the visible walls
+        this.wallColor = 0x222222; // Darker wall color to blend with gradient
     }
 
     /**
@@ -24,7 +21,6 @@ export class GoalManager {
         const startY = 140;
         const spacing = 110;
 
-        // Calculate total width to center them
         const totalWidth = (word.length * spacing);
         const screenCenter = this.scene.scale.width / 2;
         const startOffset = screenCenter - (totalWidth / 2) + (spacing / 2);
@@ -36,19 +32,35 @@ export class GoalManager {
             // 1. Create the Visual Goal Container
             const goalContainer = this.scene.add.container(x, y);
 
-            // Visual Background (The "Hole")
-            const bg = this.scene.add.rectangle(0, 0, this.goalSize, this.goalSize, 0x222222);
-            bg.setStrokeStyle(2, 0x555555);
+            // MODIFIED: Create a more colorful, game-like visual
+            const graphics = this.scene.add.graphics();
+
+            // Outer Glow / Stroke
+            graphics.lineStyle(4, 0x00ffff, 1); // Cyan Neon Stroke
+            graphics.strokeRoundedRect(-this.goalSize / 2, -this.goalSize / 2, this.goalSize, this.goalSize, 15);
+
+            // Inner Fill (Semi-transparent)
+            graphics.fillStyle(0x00ffff, 0.1);
+            graphics.fillRoundedRect(-this.goalSize / 2, -this.goalSize / 2, this.goalSize, this.goalSize, 15);
+
+            // Add a "Tech" detail - small corners
+            graphics.lineStyle(2, 0xffffff, 0.8);
+            const s = this.goalSize / 2 - 5;
+            // Top Left
+            graphics.beginPath(); graphics.moveTo(-s, -s + 10); graphics.lineTo(-s, -s); graphics.lineTo(-s + 10, -s); graphics.strokePath();
+            // Bottom Right
+            graphics.beginPath(); graphics.moveTo(s, s - 10); graphics.lineTo(s, s); graphics.lineTo(s - 10, s); graphics.strokePath();
 
             // Expected Character Text
-            // MODIFIED: Set alpha to 0 initially for the "Glitch In" effect
             const text = this.scene.add.text(0, 0, word[i], {
                 fontSize: '48px',
-                color: '#555555',
-                fontFamily: 'Arial'
+                color: '#00ffff', // Match the neon look
+                fontFamily: 'Arial',
+                fontStyle: 'bold'
             }).setOrigin(0.5).setAlpha(0);
 
-            goalContainer.add([bg, text]);
+            // Add graphics and text to container
+            goalContainer.add([graphics, text]);
 
             // Store metadata
             goalContainer.expectedChar = word[i];
@@ -68,7 +80,7 @@ export class GoalManager {
                 this.wallThickness,
                 this.wallColor
             );
-            this.scene.physics.add.existing(topWall, true); // Enable static physics
+            this.scene.physics.add.existing(topWall, true);
             this.walls.add(topWall);
 
             // Left Wall
@@ -106,18 +118,13 @@ export class GoalManager {
         }
     }
 
-    // MODIFIED: Initiates the glitch sequence (In -> Wait -> Out)
     startGlitchSequence() {
-        // Get the text objects from the goals (index 1 in container children)
+        // Get the text objects (index 1 in container children)
         const texts = this.goals.map(goal => goal.list[1]);
-
-        // Shuffle them to randomize the order
         const shuffledTexts = Phaser.Utils.Array.Shuffle([...texts]);
 
         shuffledTexts.forEach((textObj, index) => {
-            // Stagger the start times
             const delay = 500 + (index * 300);
-
             const timer = this.scene.time.delayedCall(delay, () => {
                 if (textObj.active) {
                     this.runGlitchInAndOut(textObj);
@@ -127,9 +134,7 @@ export class GoalManager {
         });
     }
 
-    // NEW: Handles Glitch In, Wait, then Glitch Out
     runGlitchInAndOut(textObj) {
-        // 1. Glitch In (Appear with distortion)
         this.scene.tweens.add({
             targets: textObj,
             alpha: { from: 0, to: 1 },
@@ -138,16 +143,14 @@ export class GoalManager {
             duration: 200,
             ease: 'Bounce.Out',
             onComplete: () => {
-                // 2. Jitter/Shake (Stay visible for a moment)
                 this.scene.tweens.add({
                     targets: textObj,
                     x: { from: textObj.x, to: textObj.x + Phaser.Math.Between(-2, 2) },
                     y: { from: textObj.y, to: textObj.y + Phaser.Math.Between(-2, 2) },
                     duration: 50,
                     yoyo: true,
-                    repeat: 10, // Shake for ~500ms
+                    repeat: 10,
                     onComplete: () => {
-                        // 3. Glitch Out (Disappear)
                         this.runGlitchOut(textObj);
                     }
                 });
@@ -155,13 +158,11 @@ export class GoalManager {
         });
     }
 
-    // Renamed from runGlitchEffect to runGlitchOut for clarity
     runGlitchOut(textObj) {
-        // Fly out of screen (Glitch out)
         this.scene.tweens.add({
             targets: textObj,
-            y: -1000, // Move well off-screen relative to container
-            scaleX: 0.1, // Distort
+            y: -1000,
+            scaleX: 0.1,
             scaleY: 2,
             alpha: 0,
             delay:1500,
@@ -192,23 +193,19 @@ export class GoalManager {
     }
 
     clear() {
-        // Clear any pending glitch timers
         if (this.glitchTimers) {
             this.glitchTimers.forEach(timer => timer.remove(false));
         }
         this.glitchTimers = [];
 
-        // Destroy visual goals
         this.goals.forEach(goal => goal.destroy());
         this.goals = [];
 
-        // Clear physics walls (remove from scene and destroy)
         this.walls.clear(true, true);
-        // Clear bottom walls
         this.bottomWalls.clear(true, true);
     }
 
     resize(width, height, totalLetters) {
-        // For now, we rely on a full level reset to handle resizing
+        // Handled by level reset
     }
 }

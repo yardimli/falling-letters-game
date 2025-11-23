@@ -25,8 +25,14 @@ export class GameScene extends Phaser.Scene {
     }
 
     create() {
+        // NEW: Create a gradient background
+        this.createBackground();
+
         // NEW: Generate the 3D Ball Texture programmatically
         this.createBallTexture();
+
+        // NEW: Generate a particle texture for explosions
+        this.createParticleTexture();
 
         // State
         this.wordQueue = []; // Queue for the 3 words
@@ -59,32 +65,40 @@ export class GameScene extends Phaser.Scene {
         this.scale.on('resize', this.resize, this);
     }
 
+    // NEW: Adds a nice gradient background
+    createBackground() {
+        const width = this.scale.width;
+        const height = this.scale.height;
+
+        // Create a graphics object for the background
+        this.bgGraphics = this.add.graphics();
+
+        // Fill with a vertical gradient: Dark Blue/Purple to Black
+        // TopLeft, TopRight, BottomLeft, BottomRight
+        this.bgGraphics.fillGradientStyle(0x1a2a6c, 0xb21f1f, 0x000000, 0x000000, 1);
+        this.bgGraphics.fillRect(0, 0, width, height);
+        this.bgGraphics.setDepth(-100); // Ensure it stays behind everything
+    }
+
     // NEW: Helper to create a 3D-looking sphere texture using Canvas gradients
     createBallTexture() {
-        // Create a texture with the key 'ball3d'
-        // MODIFIED: Increased size to 64x64 to prevent border clipping.
-        // The ball is 50px (radius 25), plus a border, so 50x50 was too tight.
         const size = 64;
         const texture = this.textures.createCanvas('ball3d', size, size);
         const context = texture.getContext();
 
         const centerX = size / 2;
         const centerY = size / 2;
-        const radius = 25; // Matches the physics body radius
+        const radius = 25;
 
-        // Create a radial gradient to simulate 3D lighting
-        // Light source offset to top-left relative to center
         const grd = context.createRadialGradient(centerX - 10, centerY - 10, 2, centerX, centerY, radius);
-        grd.addColorStop(0, '#ffffff'); // Specular highlight (White)
-        grd.addColorStop(1, '#888888'); // Shadow/Base (Gray) - allows tinting
+        grd.addColorStop(0, '#ffffff');
+        grd.addColorStop(1, '#888888');
 
         context.fillStyle = grd;
         context.beginPath();
         context.arc(centerX, centerY, radius, 0, Math.PI * 2);
         context.fill();
 
-        // Add a border
-        // Stroke is centered on the path, so it extends half-width inside and half-width outside
         context.lineWidth = 3;
         context.strokeStyle = '#ffffff';
         context.stroke();
@@ -92,24 +106,33 @@ export class GameScene extends Phaser.Scene {
         texture.refresh();
     }
 
+    // NEW: Create a simple texture for particle explosions
+    createParticleTexture() {
+        const size = 16;
+        const texture = this.textures.createCanvas('particle', size, size);
+        const context = texture.getContext();
+
+        context.fillStyle = '#ffffff';
+        context.beginPath();
+        context.arc(size/2, size/2, size/2, 0, Math.PI * 2);
+        context.fill();
+
+        texture.refresh();
+    }
+
     update() {
-        // Delegate update logic to BallManager (handling idle movement)
         this.ballManager.update();
 
-        // Update InputManager to handle physics-based dragging
         if (this.inputManager) {
             this.inputManager.update();
         }
     }
 
-    // Initializes a session of 3 words
     initGameSession() {
         const data = this.cache.json.get('wordData');
-        // Pick 3 unique random words
         const allWords = Phaser.Utils.Array.Shuffle([...data.words]);
         this.wordQueue = allWords.slice(0, 3);
 
-        // Calculate total letters for the progress bar
         this.totalSessionLetters = this.wordQueue.reduce((acc, word) => acc + word.length, 0);
         this.globalCorrectCount = 0;
         this.globalWrongCount = 0;
@@ -118,48 +141,37 @@ export class GameScene extends Phaser.Scene {
         this.startNextWord();
     }
 
-    // Starts the next word in the queue
     startNextWord() {
         if (this.wordQueue.length === 0) {
-            // Session Complete
             alert("All Words Complete!");
-            this.initGameSession(); // Restart
+            this.initGameSession();
             return;
         }
 
-        // Cleanup previous level data
         this.ballManager.clear();
         this.goalManager.clear();
 
         this.currentWord = this.wordQueue.pop();
         this.wordCorrectCount = 0;
 
-        // Build Level via Managers
         this.goalManager.createGoals(this.currentWord);
         this.ballManager.createLetterBalls(this.currentWord);
 
-        // --- Enable Collisions ---
         this.ballManager.enableCollisions();
 
         if (this.ballManager.ballGroup) {
-            // Main walls
             if (this.goalManager.getWallGroup()) {
                 this.physics.add.collider(this.ballManager.ballGroup, this.goalManager.getWallGroup());
             }
-            // Bottom walls
             if (this.goalManager.getBottomWallGroup()) {
                 this.physics.add.collider(this.ballManager.ballGroup, this.goalManager.getBottomWallGroup());
             }
         }
 
-        // Ensure cursor is on top
         this.inputManager.bringCursorToTop();
-
-        // Start the glitch sequence
         this.goalManager.startGlitchSequence();
     }
 
-    // Kept for compatibility if called externally, but logic moved to startNextWord
     startNewLevel() {
         this.initGameSession();
     }
@@ -178,10 +190,6 @@ export class GameScene extends Phaser.Scene {
         });
     }
 
-    /**
-     * Called by InputManager when a ball is dropped.
-     * @param {Phaser.GameObjects.Container} ball
-     */
     handleBallDrop(ball) {
         let landedInGoal = false;
         const goals = this.goalManager.getGoals();
@@ -189,29 +197,24 @@ export class GameScene extends Phaser.Scene {
         for (let goal of goals) {
             const distance = Phaser.Math.Distance.Between(ball.x, ball.y, goal.x, goal.y);
 
-            // Check if ball is dropped INSIDE a goal area
             if (distance < 60 && !goal.isFilled) {
                 landedInGoal = true;
                 if (ball.char === goal.expectedChar) {
                     this.handleCorrectDrop(ball, goal);
                 } else {
-                    // Only apply rejection velocity if inside the WRONG goal
                     this.handleWrongDrop(ball);
                 }
                 break;
             }
         }
 
-        // If not in any goal, just release it without rejection velocity
         if (!landedInGoal) {
             ball.body.setAllowGravity(true);
-            // Ensure it has some damping so it doesn't fly away if it was moving fast
             ball.body.setDrag(100);
         }
     }
 
     handleCorrectDrop(ball, goal) {
-        // Play Success Sound
         this.sound.play('drop_valid');
 
         ball.x = goal.x;
@@ -228,48 +231,55 @@ export class GameScene extends Phaser.Scene {
         this.wordCorrectCount++;
         this.globalCorrectCount++;
 
-        // Update ScoreBoard with global progress
         this.scoreBoard.update(this.globalCorrectCount, this.globalWrongCount, this.totalSessionLetters);
 
         // Check if current word is complete
         if (this.wordCorrectCount === this.currentWord.length) {
-            this.time.delayedCall(1000, () => {
-                this.startNextWord();
-            });
+            // MODIFIED: Call the explosion sequence instead of just waiting
+            this.handleWordCompletion();
         }
     }
 
+    // NEW: Handles the fun explosion sequence
+    handleWordCompletion() {
+        // 1. Wait a brief moment to see the completed word
+        this.time.delayedCall(500, () => {
+            // 2. Trigger explosion of all balls
+            // We need to find the balls that are currently locked
+            const lockedBalls = this.ballManager.balls.filter(b => b.isLocked);
+
+            this.ballManager.explodeBalls(lockedBalls);
+
+            // 3. Wait for explosion to finish, then load next word
+            this.time.delayedCall(1500, () => {
+                this.startNextWord();
+            });
+        });
+    }
+
     handleWrongDrop(ball) {
-        // Play Error Sound
         this.sound.play('drop_invalid');
 
         ball.body.setAllowGravity(true);
-
-        // Push downwards (Rejection)
         ball.body.setVelocity(Phaser.Math.Between(-20, 20), 200);
 
-        // Visual Feedback - Blink Red and White for 2 seconds
         const ballImage = ball.list[0];
         let isRed = true;
 
-        // Create a timer event to toggle colors
-        // Blink every 100ms for 20 times = 2000ms (2 seconds)
         const blinkEvent = this.time.addEvent({
             delay: 100,
             repeat: 19,
             callback: () => {
                 if (ballImage && ballImage.active) {
-                    // Toggle between Red (0xff0000) and White (0xffffff)
                     ballImage.setTint(isRed ? 0xff0000 : 0xffffff);
                     isRed = !isRed;
                 }
             }
         });
 
-        // After 2 seconds, reset to original Blue color
         this.time.delayedCall(2000, () => {
             if (ballImage && ballImage.active) {
-                ballImage.setTint(0x0077ff); // Back to original blue
+                ballImage.setTint(0x0077ff);
             }
         });
 
@@ -283,6 +293,13 @@ export class GameScene extends Phaser.Scene {
 
         this.cameras.main.setViewport(0, 0, width, height);
         this.physics.world.setBounds(0, 0, width, height);
+
+        // Redraw background
+        if (this.bgGraphics) {
+            this.bgGraphics.clear();
+            this.bgGraphics.fillGradientStyle(0x1a2a6c, 0xb21f1f, 0x000000, 0x000000, 1);
+            this.bgGraphics.fillRect(0, 0, width, height);
+        }
 
         this.scoreBoard.resize(width, height);
         this.goalManager.resize(width, height, this.currentWord.length);
