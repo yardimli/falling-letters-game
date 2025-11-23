@@ -36,12 +36,16 @@ export class GameScene extends Phaser.Scene {
 
         // State
         this.wordQueue = []; // Queue for the 3 words
-        this.currentWord = "";
+        this.currentWordObj = null; // Store the full object {text, image, lang}
+        this.currentWordText = ""; // Store just the string
         this.wordCorrectCount = 0; // Correct letters for current word
         this.globalCorrectCount = 0; // Correct letters for entire session (3 words)
         this.globalWrongCount = 0;
         this.totalSessionLetters = 0; // Total letters across all 3 words
         this.wallTimer = null;
+
+        // Image Display Container
+        this.wordImage = null;
 
         // Physics Boundaries
         this.physics.world.setBounds(0, 0, this.scale.width, this.scale.height);
@@ -74,7 +78,6 @@ export class GameScene extends Phaser.Scene {
         this.bgGraphics = this.add.graphics();
 
         // Fill with a vertical gradient: Dark Blue/Purple to Black
-        // TopLeft, TopRight, BottomLeft, BottomRight
         this.bgGraphics.fillGradientStyle(0x1a2a6c, 0xb21f1f, 0x000000, 0x000000, 1);
         this.bgGraphics.fillRect(0, 0, width, height);
         this.bgGraphics.setDepth(-100); // Ensure it stays behind everything
@@ -114,7 +117,7 @@ export class GameScene extends Phaser.Scene {
 
         context.fillStyle = '#ffffff';
         context.beginPath();
-        context.arc(size/2, size/2, size/2, 0, Math.PI * 2);
+        context.arc(size / 2, size / 2, size / 2, 0, Math.PI * 2);
         context.fill();
 
         texture.refresh();
@@ -130,10 +133,12 @@ export class GameScene extends Phaser.Scene {
 
     initGameSession() {
         const data = this.cache.json.get('wordData');
+        // Shuffle and pick 3 words
         const allWords = Phaser.Utils.Array.Shuffle([...data.words]);
         this.wordQueue = allWords.slice(0, 3);
 
-        this.totalSessionLetters = this.wordQueue.reduce((acc, word) => acc + word.length, 0);
+        // Calculate total letters based on the 'text' property
+        this.totalSessionLetters = this.wordQueue.reduce((acc, wordObj) => acc + wordObj.text.length, 0);
         this.globalCorrectCount = 0;
         this.globalWrongCount = 0;
 
@@ -148,14 +153,62 @@ export class GameScene extends Phaser.Scene {
             return;
         }
 
+        // Clean up previous round
         this.ballManager.clear();
         this.goalManager.clear();
+        if (this.wordImage) {
+            this.wordImage.destroy();
+            this.wordImage = null;
+        }
 
-        this.currentWord = this.wordQueue.pop();
+        // Get next word object
+        this.currentWordObj = this.wordQueue.pop();
+        this.currentWordText = this.currentWordObj.text; // Extract string
         this.wordCorrectCount = 0;
 
-        this.goalManager.createGoals(this.currentWord);
-        this.ballManager.createLetterBalls(this.currentWord);
+        // --- NEW: Load and Display Image ---
+        // Since images are dynamic, we load them on the fly
+        if (this.currentWordObj.image) {
+            const imgKey = 'wordImg_' + Date.now(); // Unique key to prevent caching issues
+            this.load.image(imgKey, this.currentWordObj.image);
+            this.load.once('complete', () => {
+                this.displayWordImage(imgKey);
+                this.setupLevelEntities(); // Start game after image loads
+            });
+            this.load.start();
+        } else {
+            this.setupLevelEntities();
+        }
+    }
+
+    displayWordImage(key) {
+        // Display image in the center, slightly transparent or behind goals
+        const cx = this.scale.width / 2;
+        const cy = this.scale.height / 2;
+
+        this.wordImage = this.add.image(cx, cy, key);
+        this.wordImage.setOrigin(0.5);
+
+        // Scale down if too big
+        const maxSize = 200;
+        if (this.wordImage.width > maxSize || this.wordImage.height > maxSize) {
+            const scale = maxSize / Math.max(this.wordImage.width, this.wordImage.height);
+            this.wordImage.setScale(scale);
+        }
+
+        // Add a border/frame effect
+        this.wordImage.setAlpha(0);
+        this.tweens.add({
+            targets: this.wordImage,
+            alpha: 1,
+            duration: 500
+        });
+    }
+
+    setupLevelEntities() {
+        // Create Goals and Balls using the text string
+        this.goalManager.createGoals(this.currentWordText);
+        this.ballManager.createLetterBalls(this.currentWordText);
 
         this.ballManager.enableCollisions();
 
@@ -234,7 +287,7 @@ export class GameScene extends Phaser.Scene {
         this.scoreBoard.update(this.globalCorrectCount, this.globalWrongCount, this.totalSessionLetters);
 
         // Check if current word is complete
-        if (this.wordCorrectCount === this.currentWord.length) {
+        if (this.wordCorrectCount === this.currentWordText.length) {
             // MODIFIED: Call the explosion sequence instead of just waiting
             this.handleWordCompletion();
         }
@@ -302,6 +355,14 @@ export class GameScene extends Phaser.Scene {
         }
 
         this.scoreBoard.resize(width, height);
-        this.goalManager.resize(width, height, this.currentWord.length);
+        // Ensure we use the text length for resizing logic
+        if (this.currentWordText) {
+            this.goalManager.resize(width, height, this.currentWordText.length);
+        }
+
+        // Reposition image on resize
+        if (this.wordImage) {
+            this.wordImage.setPosition(width / 2, height / 2 - 100);
+        }
     }
 }

@@ -1,12 +1,14 @@
 {
-  "words": [
-    "CAT",
-    "DOG",
-    "FOOD",
-    "BALL",
-    "TOY",
-    "PHONE",
-    "HOME",
-    "CAR"
-  ]
+    "words": [
+        {
+            "text": "CAT",
+            "image": "assets\/uploads\/69232bfcae3cf.jpg",
+            "lang": "en"
+        },
+        {
+            "text": "DOG",
+            "image": "assets\/uploads\/69232c1134f4e.jpg",
+            "lang": "en"
+        }
+    ]
 }
