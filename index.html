@@ -162,7 +162,8 @@
 	});
 
 	// Play Button Logic
-	btnPlay.addEventListener('click', () => {
+	// MODIFIED: Added async keyword to handle data fetching in launchGame
+	btnPlay.addEventListener('click', async () => {
 		const selectedLang = langSelect.value;
 		const selectedCount = countSelect.value;
 
@@ -173,7 +174,7 @@
 		document.body.style.cursor = 'none';
 
 		// Launch Phaser Game with settings
-		launchGame({
+		await launchGame({
 			lang: selectedLang,
 			count: selectedCount
 		});

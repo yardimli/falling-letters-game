@@ -36,10 +36,13 @@ export class GameScene extends Phaser.Scene {
 
         // State
         this.currentWordText = this.targetWordObj.text;
-        this.wordCorrectCount = 0;
-        this.globalCorrectCount = 0;
-        this.globalWrongCount = 0;
-        this.totalSessionLetters = this.currentWordText.length;
+        this.wordCorrectCount = 0; // Tracks progress for THIS word only (for completion logic)
+
+        // MODIFIED: Retrieve global session stats from Registry
+        this.sessionCorrect = this.registry.get('sessionCorrect') || 0;
+        this.sessionWrong = this.registry.get('sessionWrong') || 0;
+        this.sessionTotalLetters = this.registry.get('sessionTotalLetters') || 1; // Avoid div by 0
+
         this.wallTimer = null;
 
         // Image Display Container
@@ -51,6 +54,9 @@ export class GameScene extends Phaser.Scene {
         // Initialize Managers
         this.scoreBoard = new ScoreBoard(this);
         this.scoreBoard.create();
+
+        // MODIFIED: Initial Scoreboard Update using Session Totals
+        this.scoreBoard.update(this.sessionCorrect, this.sessionTotalLetters, this.sessionWrong);
 
         this.ballManager = new BallManager(this);
         this.goalManager = new GoalManager(this);
@@ -221,9 +227,15 @@ export class GameScene extends Phaser.Scene {
         ball.isLocked = true;
         ball.list[0].setTint(0x00cc44);
 
+        // Update Local Word Progress (for level completion)
         this.wordCorrectCount++;
-        this.globalCorrectCount++;
-        this.scoreBoard.update(this.globalCorrectCount, this.globalWrongCount, this.totalSessionLetters);
+
+        // MODIFIED: Update Global Session Progress
+        this.sessionCorrect++;
+        this.registry.set('sessionCorrect', this.sessionCorrect);
+
+        // Update Scoreboard with Session Data
+        this.scoreBoard.update(this.sessionCorrect, this.sessionTotalLetters, this.sessionWrong);
 
         if (this.wordCorrectCount === this.currentWordText.length) {
             this.handleWordCompletion();
@@ -277,8 +289,13 @@ export class GameScene extends Phaser.Scene {
                 ballImage.setTint(0x0077ff);
             }
         });
-        this.globalWrongCount++;
-        this.scoreBoard.update(this.globalCorrectCount, this.globalWrongCount, this.totalSessionLetters);
+
+        // MODIFIED: Update Global Session Accuracy
+        this.sessionWrong++;
+        this.registry.set('sessionWrong', this.sessionWrong);
+
+        // Update Scoreboard with Session Data
+        this.scoreBoard.update(this.sessionCorrect, this.sessionTotalLetters, this.sessionWrong);
     }
 
     resize(gameSize) {

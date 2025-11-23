@@ -65,16 +65,22 @@ export class ScoreBoard {
     /**
      * Updates the scoreboard with new game data.
      * Triggers animations for the bars.
-     * @param {number} correctCount
-     * @param {number} wrongCount
-     * @param {number} totalLetters
+     *
+     * MODIFIED: Now calculates progress based on Global Session Totals.
+     *
+     * @param {number} sessionCorrect - Total correct letters placed in session
+     * @param {number} sessionTotal - Total letters expected in the entire session
+     * @param {number} sessionWrong - Total wrong drops in session
      */
-    update(correctCount, wrongCount, totalLetters) {
+    update(sessionCorrect, sessionTotal, sessionWrong) {
         // 1. Calculate Targets
-        const targetProgress = totalLetters > 0 ? (correctCount / totalLetters) : 0;
 
-        const totalAttempts = correctCount + wrongCount;
-        const targetAccuracy = totalAttempts > 0 ? (correctCount / totalAttempts) : 1;
+        // Progress: Percentage of the entire game completed
+        const targetProgress = sessionTotal > 0 ? (sessionCorrect / sessionTotal) : 0;
+
+        // Accuracy: Correct drops vs Total attempts
+        const totalAttempts = sessionCorrect + sessionWrong;
+        const targetAccuracy = totalAttempts > 0 ? (sessionCorrect / totalAttempts) : 1;
 
         // 2. Tween State values to Targets
         this.scene.tweens.add({
