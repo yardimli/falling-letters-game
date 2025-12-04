@@ -1,4 +1,8 @@
 <script>
+	// --- Configuration ---
+	// NEW: Inject PHP variable for JS use so previews load correctly in subdirectories
+	const sourceUrlExtension = "<?php echo htmlspecialchars($sourceUrlExtension ?? ''); ?>";
+	
 	// --- Common Elements ---
 	const modal = document.getElementById('wordModal');
 	const audioModal = document.getElementById('audioModal');
@@ -52,7 +56,10 @@
 		formData.append('lang', lang);
 		
 		try {
-			const res = await fetch('admin.php', { method: 'POST', body: formData });
+			const res = await fetch('admin.php', {
+				method: 'POST',
+				body: formData
+			});
 			const data = await res.json();
 			
 			if (data.success) {
@@ -120,7 +127,10 @@
 		formData.append('action', 'scan_missing_assets');
 		
 		try {
-			const res = await fetch('admin.php', { method: 'POST', body: formData });
+			const res = await fetch('admin.php', {
+				method: 'POST',
+				body: formData
+			});
 			const data = await res.json();
 			
 			if (data.success) {
@@ -167,7 +177,10 @@
 		formData.append('type', task.type);
 		
 		try {
-			const res = await fetch('admin.php', { method: 'POST', body: formData });
+			const res = await fetch('admin.php', {
+				method: 'POST',
+				body: formData
+			});
 			const data = await res.json();
 			
 			if (data.success) {
@@ -220,7 +233,7 @@
 	
 	// --- Modal Logic ---
 	function openModal() {
-		if(!modal) return;
+		if (!modal) return;
 		modal.style.display = 'block';
 		modalTitle.innerText = 'Add New Word';
 		editIndex.value = '';
@@ -235,7 +248,7 @@
 	}
 	
 	function editWord(word, index) {
-		if(!modal) return;
+		if (!modal) return;
 		modal.style.display = 'block';
 		modalTitle.innerText = 'Edit Word';
 		editIndex.value = index;
@@ -247,18 +260,25 @@
 		aiPrompt.value = word.image_prompt || ''; // Load saved prompt
 		
 		if (word.audio) {
-			audioPlayer.src = word.audio + "?t=" + new Date().getTime();
+			// MODIFIED: Prepend sourceUrlExtension to the path from DB
+			audioPlayer.src = sourceUrlExtension + word.audio + "?t=" + new Date().getTime();
 			audioPlayer.style.display = 'block';
 		} else {
 			audioPlayer.src = '';
 		}
 		
 		const displayImg = word.thumb || word.image;
-		if (displayImg) showPreview(displayImg);
-		else resetPreview();
+		if (displayImg) {
+			// MODIFIED: Prepend sourceUrlExtension to the path from DB
+			showPreview(sourceUrlExtension + displayImg);
+		} else {
+			resetPreview();
+		}
 	}
 	
-	function closeModal() { if(modal) modal.style.display = 'none'; }
+	function closeModal() {
+		if (modal) modal.style.display = 'none';
+	}
 	
 	// --- Audio Logic ---
 	function getFormattedPrompt(text) {
@@ -280,7 +300,9 @@
 		audioModal.style.display = 'block';
 	}
 	
-	function closeAudioModal() { audioModal.style.display = 'none'; }
+	function closeAudioModal() {
+		audioModal.style.display = 'none';
+	}
 	
 	async function submitAudioGeneration() {
 		const promptVal = ttsPrompt.value.trim();
@@ -296,15 +318,19 @@
 		if (targetIdx !== "") formData.append('index', targetIdx);
 		
 		try {
-			const res = await fetch('admin.php', { method: 'POST', body: formData });
+			const res = await fetch('admin.php', {
+				method: 'POST',
+				body: formData
+			});
 			const data = await res.json();
 			if (data.success) {
 				if (targetIdx !== "") {
 					alert("Audio generated and saved!");
 					location.reload();
 				} else {
+					// MODIFIED: Prepend sourceUrlExtension for previewing new audio
 					currentAudioPath.value = data.url;
-					audioPlayer.src = data.url + "?t=" + new Date().getTime();
+					audioPlayer.src = sourceUrlExtension + data.url + "?t=" + new Date().getTime();
 					audioPlayer.play();
 					closeAudioModal();
 				}
@@ -321,20 +347,20 @@
 	
 	// --- Image Logic ---
 	function resetPreview() {
-		if(!previewImage) return;
+		if (!previewImage) return;
 		previewImage.style.display = 'none';
 		previewImage.src = '';
 		placeholderText.style.display = 'block';
 	}
 	
 	function showPreview(src) {
-		if(!previewImage) return;
+		if (!previewImage) return;
 		previewImage.src = src;
 		previewImage.style.display = 'block';
 		placeholderText.style.display = 'none';
 	}
 	
-	if(fileInput) {
+	if (fileInput) {
 		fileInput.addEventListener('change', function() {
 			if (this.files && this.files[0]) {
 				const reader = new FileReader();
@@ -356,11 +382,15 @@
 		formData.append('prompt', promptVal);
 		
 		try {
-			const res = await fetch('admin.php', { method: 'POST', body: formData });
+			const res = await fetch('admin.php', {
+				method: 'POST',
+				body: formData
+			});
 			const data = await res.json();
 			if (data.success) {
+				// Note: API handler for image already includes extension in data.url
 				showPreview(data.url);
-				currentImagePath.value = data.url;
+				currentImagePath.value = data.real_url;
 				fileInput.value = '';
 			} else {
 				alert(data.error);

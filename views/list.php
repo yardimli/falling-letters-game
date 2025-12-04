@@ -53,6 +53,7 @@
 					<td>
 						<?php $imgSrc = !empty($word['thumb']) ? $word['thumb'] : $word['image']; ?>
 						<?php if (!empty($imgSrc)): ?>
+							<?php $imgSrc = $sourceUrlExtension . $imgSrc; ?>
 							<img src="<?php echo htmlspecialchars($imgSrc); ?>?t=<?php echo time(); ?>" class="preview-thumb">
 						<?php else: ?>
 							<div style="width:50px; height:50px; background:#444;"></div>
@@ -71,11 +72,13 @@
 					</td>
 					<td><?php echo htmlspecialchars($data['languages'][$word['lang']] ?? $word['lang']); ?></td>
 					<td>
+						<?php $audioSrc = $word['audio']; ?>
 						<?php if (!empty($word['audio'])): ?>
+							<?php $audioSrc = $sourceUrlExtension . $audioSrc; ?>
 							<div style="display: flex; align-items: center; gap: 5px;">
 								<span style="color:#00cc44;">&#10004;</span>
 								<!-- NEW: Play Button -->
-								<button type="button" class="btn btn-audio-small" onclick="playAudio('<?php echo $word['audio']; ?>')">
+								<button type="button" class="btn btn-audio-small" onclick="playAudio('<?php echo $audioSrc; ?>')">
 									&#9658;
 								</button>
 							</div>

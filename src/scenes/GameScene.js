@@ -4,17 +4,17 @@ import { GoalManager } from '../managers/GoalManager.js';
 import { InputManager } from '../managers/InputManager.js';
 
 export class GameScene extends Phaser.Scene {
-    constructor() {
+    constructor () {
         super({ key: 'GameScene' });
     }
-
+    
     // MODIFIED: Init method now accepts specific word data from SelectionScene
-    init(data) {
+    init (data) {
         this.targetWordObj = data.wordObj;
         console.log(`GameScene started for: ${this.targetWordObj.text}`);
     }
-
-    preload() {
+    
+    preload () {
         // Audio Assets
         this.load.audio('drop', 'assets/audio/DSGNBass_Smooth Sub Drop Bass Downer.wav');
         this.load.audio('bounce1', 'assets/audio/basketball_bounce_single_3.wav');
@@ -25,56 +25,56 @@ export class GameScene extends Phaser.Scene {
         this.load.audio('drop_valid', 'assets/audio/Drop Game Potion.wav');
         this.load.audio('drop_invalid', 'assets/audio/Hit Item Dropped 2.wav');
     }
-
-    create() {
+    
+    create () {
         // Fade in transition
         this.cameras.main.fadeIn(500, 0, 0, 0);
-
+        
         this.createBackground();
         this.createBallTexture();
         this.createParticleTexture();
-
+        
         // State
         this.currentWordText = this.targetWordObj.text;
         this.wordCorrectCount = 0; // Tracks progress for THIS word only (for completion logic)
-
+        
         // MODIFIED: Retrieve global session stats from Registry
         this.sessionCorrect = this.registry.get('sessionCorrect') || 0;
         this.sessionWrong = this.registry.get('sessionWrong') || 0;
         this.sessionTotalLetters = this.registry.get('sessionTotalLetters') || 1; // Avoid div by 0
-
+        
         this.wallTimer = null;
-
+        
         // Image Display Container
         this.wordImage = null;
-
+        
         // Physics Boundaries
         this.physics.world.setBounds(0, 0, this.scale.width, this.scale.height);
-
+        
         // Initialize Managers
         this.scoreBoard = new ScoreBoard(this);
         this.scoreBoard.create();
-
+        
         // MODIFIED: Initial Scoreboard Update using Session Totals
         this.scoreBoard.update(this.sessionCorrect, this.sessionTotalLetters, this.sessionWrong);
-
+        
         this.ballManager = new BallManager(this);
         this.goalManager = new GoalManager(this);
         this.inputManager = new InputManager(this);
-
+        
         this.inputManager.create();
-
+        
         // Start Logic for the single word
         this.setupSingleWord();
-
+        
         // Event Listeners
         this.scale.on('resize', this.resize, this);
-
+        
         // Add a "Back" button
         this.createBackButton();
     }
-
-    createBackButton() {
+    
+    createBackButton () {
         const btn = this.add.text(50, 50, '← BACK', {
             fontSize: '24px',
             fontStyle: 'bold',
@@ -82,13 +82,13 @@ export class GameScene extends Phaser.Scene {
             backgroundColor: '#333333',
             padding: { x: 10, y: 5 }
         }).setInteractive({ useHandCursor: true });
-
+        
         btn.on('pointerdown', () => {
             this.returnToSelection();
         });
     }
-
-    createBackground() {
+    
+    createBackground () {
         const width = this.scale.width;
         const height = this.scale.height;
         this.bgGraphics = this.add.graphics();
@@ -96,8 +96,8 @@ export class GameScene extends Phaser.Scene {
         this.bgGraphics.fillRect(0, 0, width, height);
         this.bgGraphics.setDepth(-100);
     }
-
-    createBallTexture() {
+    
+    createBallTexture () {
         if (this.textures.exists('ball3d')) return;
         const size = 64;
         const texture = this.textures.createCanvas('ball3d', size, size);
@@ -117,8 +117,8 @@ export class GameScene extends Phaser.Scene {
         context.stroke();
         texture.refresh();
     }
-
-    createParticleTexture() {
+    
+    createParticleTexture () {
         if (this.textures.exists('particle')) return;
         const size = 16;
         const texture = this.textures.createCanvas('particle', size, size);
@@ -129,26 +129,26 @@ export class GameScene extends Phaser.Scene {
         context.fill();
         texture.refresh();
     }
-
-    update() {
+    
+    update () {
         this.ballManager.update();
         if (this.inputManager) {
             this.inputManager.update();
         }
     }
-
-    setupSingleWord() {
+    
+    setupSingleWord () {
         // Display Image (using the texture key loaded in SelectionScene)
         // The texture key is the word text itself based on SelectionScene logic
         if (this.textures.exists(this.targetWordObj.text)) {
             this.displayWordImage(this.targetWordObj.text);
         }
-
+        
         // Setup Entities
         this.goalManager.createGoals(this.currentWordText);
         this.ballManager.createLetterBalls(this.currentWordText);
         this.ballManager.enableCollisions();
-
+        
         if (this.ballManager.ballGroup) {
             if (this.goalManager.getWallGroup()) {
                 this.physics.add.collider(this.ballManager.ballGroup, this.goalManager.getWallGroup());
@@ -157,12 +157,12 @@ export class GameScene extends Phaser.Scene {
                 this.physics.add.collider(this.ballManager.ballGroup, this.goalManager.getBottomWallGroup());
             }
         }
-
+        
         this.inputManager.bringCursorToTop();
         this.goalManager.startGlitchSequence();
     }
-
-    displayWordImage(key) {
+    
+    displayWordImage (key) {
         const cx = this.scale.width / 2;
         const cy = this.scale.height / 2;
         this.wordImage = this.add.image(cx, cy, key);
@@ -179,25 +179,25 @@ export class GameScene extends Phaser.Scene {
             duration: 500
         });
     }
-
-    handleDragStart() {
+    
+    handleDragStart () {
         if (this.wallTimer) {
             this.wallTimer.remove(false);
             this.wallTimer = null;
         }
         this.goalManager.toggleBottomWalls(false);
     }
-
-    handleDragEnd() {
+    
+    handleDragEnd () {
         this.wallTimer = this.time.delayedCall(1000, () => {
             this.goalManager.toggleBottomWalls(true);
         });
     }
-
-    handleBallDrop(ball) {
+    
+    handleBallDrop (ball) {
         let landedInGoal = false;
         const goals = this.goalManager.getGoals();
-
+        
         for (let goal of goals) {
             const distance = Phaser.Math.Distance.Between(ball.x, ball.y, goal.x, goal.y);
             if (distance < 60 && !goal.isFilled) {
@@ -210,14 +210,14 @@ export class GameScene extends Phaser.Scene {
                 break;
             }
         }
-
+        
         if (!landedInGoal) {
             ball.body.setAllowGravity(true);
             ball.body.setDrag(100);
         }
     }
-
-    handleCorrectDrop(ball, goal) {
+    
+    handleCorrectDrop (ball, goal) {
         this.sound.play('drop_valid');
         ball.x = goal.x;
         ball.y = goal.y;
@@ -226,27 +226,27 @@ export class GameScene extends Phaser.Scene {
         goal.isFilled = true;
         ball.isLocked = true;
         ball.list[0].setTint(0x00cc44);
-
+        
         // Update Local Word Progress (for level completion)
         this.wordCorrectCount++;
-
+        
         // MODIFIED: Update Global Session Progress
         this.sessionCorrect++;
         this.registry.set('sessionCorrect', this.sessionCorrect);
-
+        
         // Update Scoreboard with Session Data
         this.scoreBoard.update(this.sessionCorrect, this.sessionTotalLetters, this.sessionWrong);
-
+        
         if (this.wordCorrectCount === this.currentWordText.length) {
             this.handleWordCompletion();
         }
     }
-
-    handleWordCompletion() {
+    
+    handleWordCompletion () {
         this.time.delayedCall(500, () => {
             const lockedBalls = this.ballManager.balls.filter(b => b.isLocked);
             this.ballManager.explodeBalls(lockedBalls);
-
+            
             // MODIFIED: Return to Selection Scene after explosion
             this.time.delayedCall(1500, () => {
                 // Update Registry
@@ -255,20 +255,20 @@ export class GameScene extends Phaser.Scene {
                     completed.push(this.currentWordText);
                     this.registry.set('completedWords', completed);
                 }
-
+                
                 this.returnToSelection();
             });
         });
     }
-
-    returnToSelection() {
+    
+    returnToSelection () {
         this.cameras.main.fadeOut(500, 0, 0, 0);
         this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => {
             this.scene.start('SelectionScene');
         });
     }
-
-    handleWrongDrop(ball) {
+    
+    handleWrongDrop (ball) {
         this.sound.play('drop_invalid');
         ball.body.setAllowGravity(true);
         ball.body.setVelocity(Phaser.Math.Between(-20, 20), 200);
@@ -289,16 +289,16 @@ export class GameScene extends Phaser.Scene {
                 ballImage.setTint(0x0077ff);
             }
         });
-
+        
         // MODIFIED: Update Global Session Accuracy
         this.sessionWrong++;
         this.registry.set('sessionWrong', this.sessionWrong);
-
+        
         // Update Scoreboard with Session Data
         this.scoreBoard.update(this.sessionCorrect, this.sessionTotalLetters, this.sessionWrong);
     }
-
-    resize(gameSize) {
+    
+    resize (gameSize) {
         const width = gameSize.width;
         const height = gameSize.height;
         this.cameras.main.setViewport(0, 0, width, height);

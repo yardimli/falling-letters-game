@@ -4,21 +4,24 @@
 	
 	$settings = require 'settings.php';
 	
-	// --- NEW: Load Path Settings ---
-	// Fallback to defaults if not set in settings.php
+	// --- Load Path Settings ---
+	// Use paths from settings.php, with fallbacks if missing
 	$paths = $settings['paths'] ?? [
 		'upload_dir' => 'assets/uploads/',
-		'audio_dir' => 'assets/audio/',
-		'words_json' => 'assets/words.json',
+		'audio_dir'  => 'assets/audio/',
+		'words_json_dir' => 'assets/',
 		'upload_url' => 'assets/uploads/',
-		'audio_url' => 'assets/audio/',
+		'audio_url'  => 'assets/audio/',
+		'source_url_extension' => '',
 	];
 	
-	$jsonFile = $paths['words_json'];
+	// Assign to variables for use in included files
+	$jsonFile = $paths['words_json_dir'] . 'words.json';
 	$uploadDir = $paths['upload_dir'];
 	$audioDir = $paths['audio_dir'];
 	$uploadUrl = $paths['upload_url'];
 	$audioUrl = $paths['audio_url'];
+	$sourceUrlExtension = $paths['source_url_extension'];
 	
 	// Ensure directories exist
 	if (!is_dir($uploadDir)) {
@@ -29,8 +32,9 @@
 	}
 	
 	// Load Data
-	$jsonData = file_get_contents($jsonFile);
+	$jsonData = file_exists($jsonFile) ? file_get_contents($jsonFile) : false;
 	$data = json_decode($jsonData, true);
+	
 	if (!$data) {
 		$data = ['words' => [], 'languages' => ['en' => 'English', 'zh' => 'Chinese', 'tr' => 'Turkish']];
 	}
@@ -42,12 +46,15 @@
 	require_once 'includes/functions.php';
 	
 	// --- 0. Thumbnail Check (Run on load) ---
+	// Checks if thumbnails exist for images; if not, creates them using the configured paths.
 	$dataChanged = false;
 	foreach ($data['words'] as &$word) {
-		// Check if image exists using the stored URL path converted to physical path
 		$storedImg = $word['image'] ?? '';
 		if (!empty($storedImg)) {
+			// Extract filename from the stored URL
 			$fileName = basename($storedImg);
+			
+			// Construct physical path using configured directory
 			$physicalImgPath = $uploadDir . $fileName;
 			
 			if (file_exists($physicalImgPath)) {
@@ -65,11 +72,13 @@
 		}
 	}
 	unset($word);
+	
 	if ($dataChanged) {
 		file_put_contents($jsonFile, json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
 	}
 	
 	// --- 1. Handle AJAX Requests ---
+	// api_handler.php inherits $uploadDir, $audioDir, $uploadUrl, $audioUrl, $jsonFile
 	require 'includes/api_handler.php';
 	
 	// --- 2. Authentication ---
@@ -117,7 +126,7 @@
 			$audioPath = $_POST['current_audio_path'] ?? '';
 			$imagePrompt = $_POST['image_prompt'] ?? '';
 			
-			// Handle File Upload
+			// Handle File Upload using configured $uploadDir
 			if (isset($_FILES['image_file']) && $_FILES['image_file']['error'] === UPLOAD_ERR_OK) {
 				$ext = pathinfo($_FILES['image_file']['name'], PATHINFO_EXTENSION);
 				$filename = uniqid() . '.' . $ext;
@@ -148,10 +157,10 @@
 				$spelled = implode(', ', str_split($text));
 				$prompt = "Spell: " . $spelled . "\nSay cheerfully: " . $text;
 				
-				// Generate to physical path
+				// Generate to physical path using configured $audioDir
 				$newAudioPhysical = generateAudio($prompt, $settings['gemini_api_key'], $audioDir);
 				if ($newAudioPhysical) {
-					// Convert to URL path
+					// Convert to URL path using configured $audioUrl
 					$audioPath = $audioUrl . basename($newAudioPhysical);
 				}
 			}
@@ -223,7 +232,7 @@
 			if (isset($data['words'][$index])) {
 				$w = $data['words'][$index];
 				
-				// Resolve URL paths to physical paths for deletion
+				// Resolve URL paths to physical paths for deletion using configured directories
 				if (!empty($w['image'])) {
 					$p = $uploadDir . basename($w['image']);
 					if (file_exists($p)) {
@@ -259,10 +268,9 @@
 	
 	// Filter words for list view
 	$filteredWords = [];
-	$uniqueCategories = []; // Collect unique categories for the datalist
+	$uniqueCategories = [];
 	
 	foreach ($data['words'] as $idx => $word) {
-		// Collect category
 		$cat = $word['category'] ?? 'Default';
 		if (!in_array($cat, $uniqueCategories)) {
 			$uniqueCategories[] = $cat;
@@ -299,7 +307,7 @@
 	<div class="nav-tabs">
 		<a href="?view=list" class="nav-tab <?php echo $view === 'list' ? 'active' : ''; ?>">Manage Words</a>
 		<a href="?view=generator" class="nav-tab <?php echo $view === 'generator' ? 'active' : ''; ?>">AI Word Generator</a>
-		<a href="index.html" class="nav-tab">Game</a>
+		<a href="index.php" class="nav-tab">Game</a>
 	</div>
 	
 	<?php

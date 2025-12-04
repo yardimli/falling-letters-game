@@ -20,13 +20,14 @@
 				exit;
 			}
 
-			// Generate to physical path
+			// Generate to physical path using configured $uploadDir
 			$physicalPath = generateImage($prompt, $settings['fal_api_key'], $uploadDir);
 
 			if ($physicalPath) {
-				// Return URL path
-				$urlPath = $uploadUrl . basename($physicalPath);
-				echo json_encode(['success' => true, 'url' => $urlPath]);
+				// Return URL path using configured $uploadUrl
+				$urlPath = $sourceUrlExtension . $uploadUrl . basename($physicalPath);
+				$realUrlPath = $uploadUrl . basename($physicalPath);
+				echo json_encode(['success' => true, 'url' => $urlPath, 'real_url' => $realUrlPath]);
 			} else {
 				echo json_encode(['success' => false, 'error' => 'Failed to generate image']);
 			}
@@ -48,10 +49,11 @@
 				exit;
 			}
 
-			// Generate to physical path
+			// Generate to physical path using configured $audioDir
 			$physicalPath = generateAudio($prompt, $settings['gemini_api_key'], $audioDir);
 
 			if ($physicalPath) {
+				// Convert to URL path using configured $audioUrl
 				$urlPath = $audioUrl . basename($physicalPath);
 
 				// If index is provided, update the database immediately
@@ -82,7 +84,7 @@
 
 			foreach ($data['words'] as $idx => $word) {
 				// 1. Check Audio
-				// We check if the file exists physically based on the stored URL
+				// We check if the file exists physically based on the stored URL and configured directories
 				$audioExists = false;
 				if (!empty($word['audio'])) {
 					$physAudio = $audioDir . basename($word['audio']);
@@ -145,8 +147,10 @@
 				$spelled = implode(', ', str_split($text));
 				$prompt = "Spell: " . $spelled . "\nSay cheerfully: " . $text;
 
+				// Use configured $audioDir
 				$newAudioPhys = generateAudio($prompt, $settings['gemini_api_key'], $audioDir);
 				if ($newAudioPhys) {
+					// Use configured $audioUrl
 					$word['audio'] = $audioUrl . basename($newAudioPhys);
 					$success = true;
 					$message = "Audio generated successfully.";
@@ -155,8 +159,10 @@
 				}
 			} elseif ($type === 'image') {
 				if (!empty($word['image_prompt'])) {
+					// Use configured $uploadDir
 					$newImagePhys = generateImage($word['image_prompt'], $settings['fal_api_key'], $uploadDir);
 					if ($newImagePhys) {
+						// Use configured $uploadUrl
 						$word['image'] = $uploadUrl . basename($newImagePhys);
 
 						// Create thumb
