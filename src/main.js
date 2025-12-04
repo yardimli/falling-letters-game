@@ -1,14 +1,18 @@
 import { SelectionScene } from './scenes/SelectionScene.js';
 import { GameScene } from './scenes/GameScene.js';
 
-// MODIFIED: Made async to fetch word data before starting
+// MODIFIED: Added baseUrl handling for fetching assets
 export async function launchGame (settings) {
     // --- 1. Pre-calculate Session Data ---
     let sessionWords = [];
     let totalSessionLetters = 0;
     
+    // Ensure baseUrl ends with '/' if it exists and isn't empty, logic handled by simple concatenation below usually
+    const baseUrl = settings.baseUrl || '';
+    const wordsJsonPath = baseUrl + 'assets/words.json';
+    
     try {
-        const response = await fetch('assets/words.json');
+        const response = await fetch(wordsJsonPath);
         const data = await response.json();
         
         // Filter by selected language
@@ -26,7 +30,7 @@ export async function launchGame (settings) {
         
         console.log(`Session Started: ${sessionWords.length} words, ${totalSessionLetters} total letters.`);
     } catch (error) {
-        console.error('Failed to initialize session data:', error);
+        console.error('Failed to initialize session data from ' + wordsJsonPath, error);
     }
     
     // --- 2. Game Config ---
@@ -46,7 +50,6 @@ export async function launchGame (settings) {
                 debug: false
             }
         },
-        // MODIFIED: SelectionScene is now the first scene
         scene: [SelectionScene, GameScene]
     };
     

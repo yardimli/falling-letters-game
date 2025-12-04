@@ -2,17 +2,22 @@ export class SelectionScene extends Phaser.Scene {
     constructor () {
         super({ key: 'SelectionScene' });
         this.customCursor = null; // NEW: Track custom cursor
+        this.baseUrl = ''; // Store path prefix
     }
     
     init () {
         this.settings = this.registry.get('gameSettings') || { lang: 'en', count: 3 };
+        // MODIFIED: Retrieve baseUrl from settings
+        this.baseUrl = this.settings.baseUrl || '';
+        
         this.completedWords = this.registry.get('completedWords') || [];
         this.wordsToDisplay = [];
     }
     
     preload () {
         // Load the JSON data first
-        this.load.json('wordData', 'assets/words.json');
+        // MODIFIED: Use baseUrl for loading words.json via Phaser Loader
+        this.load.json('wordData', this.baseUrl + 'assets/words.json');
         
         // Load particle texture for fireworks
         this.createParticleTexture();
@@ -50,7 +55,9 @@ export class SelectionScene extends Phaser.Scene {
         
         this.wordsToDisplay.forEach((word) => {
             if (word.image && !this.textures.exists(word.text)) {
-                this.load.image(word.text, word.image);
+                // MODIFIED: Prepend baseUrl to the image path from JSON
+                const imagePath = this.baseUrl + word.image;
+                this.load.image(word.text, imagePath);
                 assetsToLoad++;
             }
         });

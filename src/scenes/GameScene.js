@@ -6,12 +6,17 @@ import { InputManager } from '../managers/InputManager.js';
 export class GameScene extends Phaser.Scene {
     constructor () {
         super({ key: 'GameScene' });
+        this.baseUrl = '';
     }
     
     // MODIFIED: Init method now accepts specific word data from SelectionScene
     init (data) {
         this.targetWordObj = data.wordObj;
         console.log(`GameScene started for: ${this.targetWordObj.text}`);
+        
+        // MODIFIED: Retrieve baseUrl from settings
+        const settings = this.registry.get('gameSettings') || {};
+        this.baseUrl = settings.baseUrl || '';
     }
     
     preload () {
