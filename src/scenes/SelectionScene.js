@@ -12,6 +12,7 @@ export class SelectionScene extends Phaser.Scene {
         
         this.completedWords = this.registry.get('completedWords') || [];
         this.wordsToDisplay = [];
+        this.poolWords = [];
     }
     
     preload () {
@@ -29,25 +30,56 @@ export class SelectionScene extends Phaser.Scene {
         // NEW: Initialize custom cursor
         this.createCustomCursor();
         
-        const data = this.cache.json.get('wordData');
+        // --- NEW: Word Pool Logic ---
+        // 1. Get the master list of words for this session
+        // Note: If sessionWords isn't set (direct scene load), we fallback to loading from cache in the block below,
+        // but typically main.js sets this.
+        let allSessionWords = this.registry.get('sessionWords');
         
-        // Filter and select words if not already done in a previous session
-        if (!this.registry.get('sessionWords')) {
+        // Fallback if registry is empty (e.g. debugging)
+        if (!allSessionWords) {
+            const data = this.cache.json.get('wordData');
             let availableWords = data.words.filter(w => w.lang === this.settings.lang);
-            
-            if (availableWords.length === 0) {
-                console.warn(`No words found for language: ${this.settings.lang}. Loading all words.`);
-                availableWords = [...data.words];
-            }
-            
+            if (availableWords.length === 0) availableWords = [...data.words];
             const shuffled = Phaser.Utils.Array.Shuffle(availableWords);
-            this.wordsToDisplay = shuffled.slice(0, parseInt(this.settings.count, 10));
-            
-            // Store in registry so the list persists between scene switches
-            this.registry.set('sessionWords', this.wordsToDisplay);
-        } else {
-            this.wordsToDisplay = this.registry.get('sessionWords');
+            allSessionWords = shuffled.slice(0, parseInt(this.settings.count, 10));
+            this.registry.set('sessionWords', allSessionWords);
         }
+        
+        // 2. Manage Active Grid vs Pool
+        // We check if we already have a state in registry.
+        let activeGridWords = this.registry.get('activeGridWords');
+        let poolWords = this.registry.get('poolWords');
+        
+        if (!activeGridWords) {
+            // First time initialization
+            // Take up to 15 words for the grid
+            activeGridWords = allSessionWords.slice(0, 15);
+            // The rest go into the waiting pool
+            poolWords = allSessionWords.slice(15);
+        } else {
+            // Returning from GameScene
+            // 1. Remove completed words from the active grid
+            // We filter out any word object whose text is in the completedWords array
+            const initialLength = activeGridWords.length;
+            activeGridWords = activeGridWords.filter(w => !this.completedWords.includes(w.text));
+            
+            // 2. Refill from pool if slots opened up
+            // We want to maintain up to 15 words if the pool has them
+            while (activeGridWords.length < 15 && poolWords.length > 0) {
+                const nextWord = poolWords.shift(); // Take from front of pool
+                activeGridWords.push(nextWord);
+            }
+        }
+        
+        // 3. Save state back to registry
+        this.registry.set('activeGridWords', activeGridWords);
+        this.registry.set('poolWords', poolWords);
+        
+        // 4. Set local variable for rendering
+        this.wordsToDisplay = activeGridWords;
+        
+        // --- End Pool Logic ---
         
         // Now load images for the selected words
         // We use a nested loader flow here
@@ -69,16 +101,33 @@ export class SelectionScene extends Phaser.Scene {
                 this.createBackground(); // Re-add background
                 this.createCustomCursor(); // Re-add cursor after clear
                 this.buildGrid();
+                this.createUI(); // NEW: Add UI elements
                 this.checkWinCondition();
             });
             this.load.start();
         } else {
             this.buildGrid();
+            this.createUI(); // NEW: Add UI elements
             this.checkWinCondition();
         }
         
         // Fade in effect
         this.cameras.main.fadeIn(500, 0, 0, 0);
+    }
+    
+    // NEW: Create UI elements like the counter
+    createUI () {
+        const activeCount = this.wordsToDisplay.length;
+        const poolCount = this.registry.get('poolWords').length;
+        const totalLeft = activeCount + poolCount;
+        
+        this.add.text(20, 20, `Words Left: ${totalLeft}`, {
+            fontSize: '32px',
+            fontStyle: 'bold',
+            color: '#ffffff',
+            stroke: '#000000',
+            strokeThickness: 4
+        });
     }
     
     // NEW: Create and manage the custom cursor
@@ -141,11 +190,12 @@ export class SelectionScene extends Phaser.Scene {
         const spacing = 20;
         
         // Calculate total grid size to center it
+        // We fix the width calculation based on max cols (5) to keep it centered consistently
         const gridWidth = (cols * cellWidth) + ((cols - 1) * spacing);
         const startX = (this.scale.width - gridWidth) / 2 + (cellWidth / 2);
         const startY = 200; // Top margin
         
-        this.add.text(this.scale.width / 2, 50, 'Select a Word', {
+        this.add.text(this.scale.width / 2, 80, 'Select a Word', {
             fontSize: '48px',
             fontStyle: 'bold',
             color: '#00ffff',
@@ -154,6 +204,9 @@ export class SelectionScene extends Phaser.Scene {
         }).setOrigin(0.5);
         
         this.wordsToDisplay.forEach((wordObj, index) => {
+            // Safety check: ensure we don't exceed 15 items visually (though logic prevents it)
+            if (index >= 15) return;
+            
             const col = index % cols;
             const row = Math.floor(index / cols);
             
@@ -165,7 +218,10 @@ export class SelectionScene extends Phaser.Scene {
     }
     
     createCard (x, y, wordObj) {
-        const isCompleted = this.completedWords.includes(wordObj.text);
+        // MODIFIED: We no longer check if it is completed here for styling,
+        // because completed words are removed from the list entirely.
+        // However, we keep the container logic.
+        
         const container = this.add.container(x, y);
         
         // Card Background
@@ -192,35 +248,23 @@ export class SelectionScene extends Phaser.Scene {
         
         container.add([bg, image, text]);
         
-        if (isCompleted) {
-            // Gray out effect
-            bg.setFillStyle(0x111111);
-            bg.setStrokeStyle(2, 0x555555);
-            image.setAlpha(0.3);
-            text.setAlpha(0.3);
-            
-            // Add checkmark
-            const check = this.add.text(0, 0, '✔', { fontSize: '100px', color: '#00ff00' }).setOrigin(0.5);
-            container.add(check);
-        } else {
-            // Interactive
-            // MODIFIED: Removed useHandCursor: true to prevent system cursor from appearing
-            bg.setInteractive();
-            
-            bg.on('pointerover', () => {
-                bg.setFillStyle(0x444444);
-                this.tweens.add({ targets: container, scale: 1.05, duration: 100 });
-            });
-            
-            bg.on('pointerout', () => {
-                bg.setFillStyle(0x333333);
-                this.tweens.add({ targets: container, scale: 1, duration: 100 });
-            });
-            
-            bg.on('pointerdown', () => {
-                this.selectWord(wordObj);
-            });
-        }
+        // Interactive
+        // MODIFIED: Removed useHandCursor: true to prevent system cursor from appearing
+        bg.setInteractive();
+        
+        bg.on('pointerover', () => {
+            bg.setFillStyle(0x444444);
+            this.tweens.add({ targets: container, scale: 1.05, duration: 100 });
+        });
+        
+        bg.on('pointerout', () => {
+            bg.setFillStyle(0x333333);
+            this.tweens.add({ targets: container, scale: 1, duration: 100 });
+        });
+        
+        bg.on('pointerdown', () => {
+            this.selectWord(wordObj);
+        });
     }
     
     selectWord (wordObj) {
@@ -232,7 +276,11 @@ export class SelectionScene extends Phaser.Scene {
     }
     
     checkWinCondition () {
-        if (this.completedWords.length === this.wordsToDisplay.length && this.wordsToDisplay.length > 0) {
+        // MODIFIED: Win condition is now when both active grid and pool are empty
+        const activeCount = this.wordsToDisplay.length;
+        const poolCount = this.registry.get('poolWords').length;
+        
+        if (activeCount === 0 && poolCount === 0) {
             this.triggerGameOver();
         }
     }

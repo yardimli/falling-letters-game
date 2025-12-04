@@ -68,5 +68,9 @@ export async function launchGame (settings) {
     
     game.registry.set('completedWords', []);
     
+    // NEW: Clear pool-specific registry keys to ensure fresh start
+    game.registry.remove('activeGridWords');
+    game.registry.remove('poolWords');
+    
     return game;
 }
