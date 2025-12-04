@@ -125,7 +125,7 @@
       }
 	</style>
 	<!-- Load Phaser -->
-	<script src="https://cdn.jsdelivr.net/npm/phaser@3.80.0/dist/phaser.min.js"></script>
+	<script src="phaser/phaser.min.js"></script>
 	
 	<!-- Inject PHP Configuration into JS -->
 	<script>

@@ -54,9 +54,9 @@ export class SelectionScene extends Phaser.Scene {
         let assetsToLoad = 0;
         
         this.wordsToDisplay.forEach((word) => {
-            if (word.image && !this.textures.exists(word.text)) {
+            if (word.thumb && !this.textures.exists(word.text)) {
                 // MODIFIED: Prepend baseUrl to the image path from JSON
-                const imagePath = this.baseUrl + word.image;
+                const imagePath = this.baseUrl + word.thumb;
                 this.load.image(word.text, imagePath);
                 assetsToLoad++;
             }
